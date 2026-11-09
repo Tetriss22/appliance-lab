@@ -1,0 +1,1007 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Appliance Brains Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a repair bench. Appliance rail, cutaway stage on a blueprint grid, service card + live readouts + signal log. */
+:root{
+  --bg:#E6EAEE; --panel:#F5F7F9; --ink:#14202B; --muted:#5A6A77; --line:#9DAAB5; --grid:#D3DAE0;
+  --metal:#D5DCE2; --metal2:#B9C4CD; --glass:#1C2731; --pcb:#2E7A58; --copper:#C58434;
+  --signal:#1F5FD1; --hot:#E0522B; --cold:#1F8FD0; --water:#3D93D6; --warn:#E9A800; --ok:#2E8B57;
+  --f-display:"Big Shoulders Display",Impact,"Arial Narrow",sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E141A; --panel:#161F28; --ink:#E3E9EE; --muted:#93A2AF; --line:#4A5967; --grid:#1A242E;
+  --metal:#33414D; --metal2:#27333D; --glass:#070B0F; --pcb:#2A6B4E; --copper:#D99B4E;
+  --signal:#6EA0FF; --hot:#FF7650; --cold:#4FB6F0; --water:#3A86C2; --warn:#F2C230; --ok:#4CC27E; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E141A; --panel:#161F28; --ink:#E3E9EE; --muted:#93A2AF; --line:#4A5967; --grid:#1A242E;
+  --metal:#33414D; --metal2:#27333D; --glass:#070B0F; --pcb:#2A6B4E; --copper:#D99B4E;
+  --signal:#6EA0FF; --hot:#FF7650; --cold:#4FB6F0; --water:#3A86C2; --warn:#F2C230; --ok:#4CC27E; color-scheme:dark}
+html,body{background:var(--bg);color:var(--ink)}
+body{font-family:var(--f-body);font-size:15px;line-height:1.5}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.wrap{max-width:1220px;margin:0 auto;padding-block:20px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:16px}
+h1{font-family:var(--f-display);font-weight:900;font-size:clamp(36px,6.4vw,64px);line-height:.88;margin:0;text-transform:uppercase;text-wrap:balance}
+h1 span{color:var(--signal)}
+.sub{color:var(--muted);margin:8px 0 0;max-width:64ch}
+.tag{font:600 11px var(--f-mono);color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.rail{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
+.rail button{flex:0 0 auto;font:600 12px var(--f-mono);letter-spacing:.05em;text-transform:uppercase;padding:9px 12px;border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:6px;cursor:pointer}
+.rail button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.rail button:disabled{opacity:.5;cursor:wait}
+.bench{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:900px){.bench{grid-template-columns:1fr}}
+.stage{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;display:grid;gap:10px;min-width:0}
+.stage svg{width:100%;height:auto;display:block;max-width:100%}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{font:600 14px var(--f-body);padding:9px 15px;border-radius:6px;border:1px solid var(--ink);background:transparent;color:var(--ink);cursor:pointer}
+.btn.primary{background:var(--signal);border-color:var(--signal);color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+select{font:500 14px var(--f-body);padding:8px 10px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+.btn:focus-visible,.rail button:focus-visible,select:focus-visible,.part:focus-visible{outline:3px solid var(--warn);outline-offset:2px}
+.hint{font:12px var(--f-mono);color:var(--muted)}
+aside{display:grid;gap:12px;align-content:start;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;min-width:0}
+.card h2{font-family:var(--f-display);font-weight:700;font-size:28px;margin:2px 0 6px;text-transform:uppercase;letter-spacing:.02em;line-height:1}
+.card p{margin:6px 0}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin:10px 0 0}
+.kv dt{font:600 10.5px var(--f-mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding-top:3px}
+.kv dd{margin:0;min-width:0}
+pre.code{margin:0;font:12.5px/1.5 var(--f-mono);background:var(--glass);color:#9FE0B8;padding:8px 10px;border-radius:6px;overflow-x:auto;white-space:pre}
+.warnbox{margin-top:10px;padding:8px 10px;border-left:4px solid var(--warn);background:color-mix(in srgb,var(--warn) 15%,transparent);font-size:14px}
+.readout{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.readout div{border:1px solid var(--line);border-radius:6px;padding:7px 9px;min-width:0}
+.readout b{display:block;font:600 21px var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.readout span{font:10.5px var(--f-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.chhead{display:flex;justify-content:space-between;gap:8px;margin:12px 0 4px}
+canvas#chart{width:100%;height:84px;display:block}
+ol.log{margin:0;padding:0;list-style:none;font:12.5px/1.45 var(--f-mono);display:grid;gap:5px;max-height:260px;overflow:auto}
+ol.log li{display:grid;grid-template-columns:42px 1fr;gap:8px}
+ol.log li .t{color:var(--muted);font-variant-numeric:tabular-nums}
+ol.log li.fail{color:var(--hot)} ol.log li.done{color:var(--ok)} ol.log li.note{color:var(--muted)}
+.safety{font-size:14px;color:var(--muted);border-top:1px solid var(--line);padding-top:12px;margin:0}
+.safety b{color:var(--ink)}
+/* svg vocabulary */
+.gridl{stroke:var(--grid);stroke-width:1;fill:none}
+.m{fill:url(#gMetal);stroke:var(--line)} .m2{fill:var(--metal2);stroke:var(--line)}
+.pcb{fill:var(--pcb);stroke:var(--line)} .chip{fill:var(--glass)} .glass{fill:var(--glass);opacity:.85}
+.cu{fill:none;stroke:var(--copper);stroke-width:1.6} .cuW{fill:none;stroke:var(--copper);stroke-width:3;stroke-linecap:round}
+.inkf{fill:var(--ink)} .warnf{fill:var(--warn)} .hotf{fill:var(--hot)} .coldf{fill:var(--cold)} .sigf{fill:var(--signal)} .waterf{fill:var(--water);opacity:.7}
+.inkS{stroke:var(--ink);stroke-width:1.5} .fin{stroke:var(--line);stroke-width:1.2}
+.coilH{fill:none;stroke:var(--copper);stroke-width:3;stroke-linejoin:round;transition:stroke .4s}
+.coilH.on{stroke:var(--hot);filter:drop-shadow(0 0 4px var(--hot))}
+.coilC{fill:none;stroke:var(--metal2);stroke-width:4;stroke-linejoin:round;transition:stroke .5s}
+.coilC.on{stroke:var(--cold)}
+.coilW{fill:none;stroke:var(--metal2);stroke-width:4;stroke-linejoin:round;transition:stroke .5s}
+.coilW.on{stroke:var(--hot)}
+.pipe{fill:none;stroke:var(--metal2);stroke-width:7;stroke-linecap:round;stroke-linejoin:round}
+.flowL{fill:none;stroke:var(--water);stroke-width:3;stroke-linecap:round;stroke-dasharray:6 8;opacity:0;transition:opacity .3s}
+.flowL.on{opacity:1;animation:dash .5s linear infinite}
+.refH,.refC{fill:none;stroke-width:3;stroke-dasharray:7 7;opacity:.35;transition:opacity .4s}
+.refH{stroke:var(--hot)} .refC{stroke:var(--cold)}
+.refH.on,.refC.on{opacity:1;animation:dash .6s linear infinite}
+.air{fill:none;stroke:var(--cold);stroke-width:2;stroke-dasharray:5 6;opacity:0;transition:opacity .4s}
+.air.on{opacity:.9;animation:dash .5s linear infinite}
+.air.warm{stroke:var(--hot)}
+.waves path{fill:none;stroke:var(--hot);stroke-width:2;stroke-dasharray:5 5;animation:dash .35s linear infinite}
+.radio{fill:none;stroke:var(--signal);stroke-width:2;stroke-dasharray:3 6;opacity:0;transition:opacity .3s}
+.radio.on{opacity:.9;animation:dash .4s linear infinite}
+@keyframes dash{to{stroke-dashoffset:-28}}
+.lbl{font:600 10px var(--f-mono);fill:var(--muted);letter-spacing:.05em;text-transform:uppercase}
+.lblI{font:600 10px var(--f-mono);fill:var(--ink)}
+.lblW{font:600 10px var(--f-mono);fill:#fff}
+.lcd{font:600 17px var(--f-mono);fill:#5BE38F}
+.big{font:900 30px var(--f-display);fill:var(--ink)}
+.part{cursor:pointer}
+.part .hit{fill:transparent;stroke:transparent;stroke-width:2}
+.part:hover .hit,.part.sel .hit{stroke:var(--signal);stroke-dasharray:5 4}
+.part.broken .hit{stroke:var(--hot);stroke-dasharray:none}
+.part .x{stroke:var(--hot);stroke-width:3.5;stroke-linecap:round;display:none;pointer-events:none}
+.part.broken .x{display:block}
+.part.lit .core{filter:drop-shadow(0 0 5px var(--signal))}
+#case{transition:transform .9s cubic-bezier(.6,0,.2,1),opacity .9s}
+#case.open{transform:translateY(-440px);opacity:0;pointer-events:none}
+.trace{stroke:var(--signal);stroke-width:2.6;stroke-linecap:round;opacity:.75;fill:none}
+#dot{fill:var(--signal)}
+.spin{transform-box:fill-box;transform-origin:center;animation:sp 1s linear infinite}
+.spinS{transform-box:fill-box;transform-origin:center;animation:sp 3s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.flick{animation:fk .11s steps(2) infinite}
+@keyframes fk{50%{opacity:.35}}
+.blink{animation:bl .5s 4}
+@keyframes bl{50%{opacity:.1}}
+@media (prefers-reduced-motion:reduce){#case{transition:none}.spin,.spinS,.flowL.on,.refH.on,.refC.on,.air.on,.waves path,.radio.on,.flick,.blink{animation:none}}
+</style>
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header>
+    <div class="tag">Appliance Brains · repair bench</div>
+    <h1>Open it. <span>Watch it think.</span></h1>
+    <p class="sub">Pick an appliance, press START and follow the signal through the real parts. Click any part to see what it decides and the logic behind it. Then break it and watch what fails.</p>
+  </header>
+
+  <nav class="rail" id="rail" aria-label="Appliances"></nav>
+
+  <div class="bench">
+    <section class="stage" aria-label="Cutaway">
+      <svg id="svg" viewBox="0 0 640 400" role="img" aria-label="Appliance internals"></svg>
+      <div class="controls">
+        <button class="btn" id="caseBtn">Take the case off</button>
+        <button class="btn primary" id="startBtn">START</button>
+        <label class="hint" for="modeSel" id="modeLbl" hidden>Mode</label>
+        <select id="modeSel" hidden></select>
+        <button class="btn" id="resetBtn">Repair all</button>
+        <span class="hint" id="brokenHint"></span>
+      </div>
+    </section>
+
+    <aside>
+      <div class="card" id="info" aria-live="polite">
+        <div class="tag" id="infoTag">Appliance</div>
+        <h2 id="infoName"></h2>
+        <p id="infoRole"></p>
+        <dl class="kv" id="infoKv"></dl>
+        <div class="warnbox" id="infoWarn" hidden></div>
+        <div class="controls" style="margin-top:12px"><button class="btn" id="breakBtn" hidden>Break it</button><button class="btn" id="backBtn" hidden>Overview</button></div>
+      </div>
+      <div class="card">
+        <div class="readout" id="readout"></div>
+        <div class="chhead"><span class="tag" id="chLabel"></span><span class="tag" id="chVal"></span></div>
+        <canvas id="chart" aria-label="Live chart"></canvas>
+      </div>
+      <div class="card">
+        <div class="tag" style="margin-bottom:8px">Signal log</div>
+        <ol class="log" id="log"></ol>
+      </div>
+    </aside>
+  </div>
+
+  <p class="safety"><b>Look here, not inside the real thing.</b> Microwaves, TVs and anything with mains power hide capacitors that can hold a lethal charge after you unplug them.</p>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const sleep=ms=>new Promise(r=>setTimeout(r,RM?Math.min(ms,120):ms));
+const ease=k=>k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,k)=>a+(b-a)*k;
+function anim(ms,fn){if(RM)ms=Math.min(ms,ms*.35+60);return new Promise(r=>{const st=performance.now();let last=st;function f(n){const k=Math.min(1,(n-st)/ms);const stop=fn(k,n-last);last=n;(k<1&&!stop)?requestAnimationFrame(f):r()}requestAnimationFrame(f)})}
+
+/* ---------- svg helpers ---------- */
+const DEFS=`<defs>
+<pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" class="gridl"/></pattern>
+<pattern id="mesh" width="7" height="7" patternUnits="userSpaceOnUse"><circle cx="3.5" cy="3.5" r="1.3" style="fill:var(--line)" opacity=".45"/></pattern>
+<pattern id="holes" width="12" height="12" patternUnits="userSpaceOnUse"><circle cx="6" cy="6" r="1.8" style="fill:var(--line)"/></pattern>
+<pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="3" height="8" style="fill:var(--line)" opacity=".5"/></pattern>
+<linearGradient id="gMetal" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--metal)"/><stop offset="1" style="stop-color:var(--metal2)"/></linearGradient>
+<radialGradient id="gHot"><stop offset="0" style="stop-color:var(--hot);stop-opacity:.85"/><stop offset="1" style="stop-color:var(--hot);stop-opacity:0"/></radialGradient>
+<radialGradient id="gSig"><stop offset="0" style="stop-color:var(--signal);stop-opacity:.75"/><stop offset="1" style="stop-color:var(--signal);stop-opacity:0"/></radialGradient>
+</defs>`;
+function P(id,boxes,inner,label){
+  const bs=Array.isArray(boxes[0])?boxes:[boxes];
+  const [x,y,w,h]=bs[0];
+  let lab='';
+  if(label){lab=label[0]==='<'?label:(Array.isArray(label)?`<text class="lbl" x="${label[1]}" y="${label[2]}">${label[0]}</text>`:`<text class="lbl" x="${x}" y="${y+h+11}">${label}</text>`)}
+  return `<g class="part" data-id="${id}" tabindex="0" role="button"><g class="core">${inner}</g>${lab}${bs.map(b=>`<rect class="hit" x="${b[0]}" y="${b[1]}" width="${b[2]}" height="${b[3]}" rx="6"/>`).join('')}<line class="x" x1="${x+5}" y1="${y+5}" x2="${x+w-5}" y2="${y+h-5}"/><line class="x" x1="${x+w-5}" y1="${y+5}" x2="${x+5}" y2="${y+h-5}"/></g>`;
+}
+const fan=(cx,cy,r,id)=>`<g id="${id}">${[0,90,180,270].map(a=>`<ellipse cx="${cx}" cy="${cy-r*.48}" rx="${r*.2}" ry="${r*.42}" transform="rotate(${a} ${cx} ${cy})" style="fill:var(--line)"/>`).join('')}<circle cx="${cx}" cy="${cy}" r="${r*.16}" class="chip"/></g>`;
+const zig=(x,y,w,n,step)=>{let d=`M${x} ${y}`;for(let i=0;i<n;i++){d+=` h${i%2?-w:w} v${step}`}return d};
+
+/* ---------- appliances ---------- */
+const APPS=[];
+
+/* ===== MICROWAVE ===== */
+APPS.push({
+ id:'microwave',name:'Microwave',
+ blurb:'A timer chip, three safety switches and a vacuum tube that makes 2.45 GHz waves. The board never "heats food". It only decides when 4,000 volts are allowed to reach the tube.',
+ spec:[['Frequency','2.45 GHz'],['Tube voltage','≈ 4,000 V'],['Output','700–1,200 W'],['From the wall','≈ 1.5 kW']],
+ modes:['Full power','50% power'],
+ readouts:[['timer','Timer','0:30'],['food','Food','4°C'],['mag','Magnetron','off']],
+ chart:['Food temperature','°C',0,100],
+ base:`
+ <rect x="34" y="54" width="300" height="296" rx="8" class="m2"/>
+ <rect id="mwGlow" x="38" y="58" width="292" height="288" rx="6" fill="url(#gHot)" opacity="0"/>
+ <g id="mwWaves" class="waves" opacity="0"><path d="M246 66 q12 12 0 24 q-12 12 0 24 q12 12 0 24 q-12 12 0 24 q12 12 0 24"/><path d="M286 66 q12 12 0 24 q-12 12 0 24 q12 12 0 24 q-12 12 0 24"/><path d="M206 66 q12 12 0 24 q-12 12 0 24 q12 12 0 24 q-12 12 0 24 q12 12 0 24 q-12 12 0 24"/></g>
+ <text class="lbl" x="44" y="76">cavity · metal box keeps the waves in</text>
+ <rect x="226" y="44" width="196" height="20" rx="3" class="m"/><text class="lbl" x="232" y="58">waveguide</text>
+ ${P('turntable',[70,262,230,82],`<g id="mwPlate"><ellipse cx="185" cy="308" rx="104" ry="22" class="m"/><path d="M95 308 H275 M185 288 V328" class="gridl" style="stroke:var(--line)"/></g><path d="M150 294 a35 12 0 0 0 70 0 l-7 -18 h-56z" style="fill:var(--panel);stroke:var(--line)"/><text id="mwFood" class="lblI" x="185" y="290" text-anchor="middle">4°C</text>`,['turntable motor',72,356])}
+ ${P('door',[322,84,24,236],`<rect x="327" y="92" width="14" height="20" rx="2" class="warnf"/><rect x="327" y="192" width="14" height="20" rx="2" class="warnf"/><rect x="327" y="292" width="14" height="20" rx="2" class="warnf"/><text class="lblI" x="334" y="106" text-anchor="middle">P</text><text class="lblI" x="334" y="206" text-anchor="middle">S</text><text class="lblI" x="334" y="306" text-anchor="middle">M</text>`,`<text class="lbl" transform="rotate(-90 357 300)" x="357" y="300">door interlocks</text>`)}
+ ${P('magnetron',[362,66,96,104],`<rect x="370" y="78" width="80" height="80" rx="5" class="m"/>${[90,102,114,126,138,150].map(y=>`<line x1="370" y1="${y}" x2="450" y2="${y}" class="fin"/>`).join('')}<rect x="400" y="58" width="20" height="20" class="m"/><circle id="mwMag" cx="410" cy="118" r="14" class="chip"/>`,'magnetron')}
+ ${P('fan',[466,72,64,76],`<circle cx="498" cy="108" r="28" class="m"/>${fan(498,108,26,'mwFan')}`,['fan',470,160])}
+ ${P('fuse',[470,172,58,34],`<rect x="478" y="181" width="42" height="16" rx="8" class="glass"/><rect x="472" y="183" width="9" height="12" class="m"/><rect x="517" y="183" width="9" height="12" class="m"/><path id="mwFuse" d="M481 189 q9 -8 18 0 t18 0" style="fill:none;stroke:var(--copper);stroke-width:1.5"/>`,['mains fuse',472,218])}
+ ${P('transformer',[362,226,112,108],`<rect x="368" y="236" width="100" height="86" rx="4" class="m"/><rect x="380" y="246" width="30" height="66" style="fill:var(--copper)"/><rect x="426" y="246" width="30" height="66" class="hotf" opacity=".75"/><text class="lblW" x="395" y="283" text-anchor="middle">230V</text><text class="lblW" x="441" y="283" text-anchor="middle">2kV</text>`,['HV transformer',364,346])}
+ ${P('capacitor',[482,228,50,104],`<rect x="490" y="234" width="34" height="60" rx="10" class="warnf" style="stroke:var(--line)"/><path d="M504 246 l9 0 l-7 13 l9 0 l-14 18 l4 -13 l-8 0z" class="inkf"/><polygon points="497,302 517,302 507,316" class="inkf"/><rect x="497" y="317" width="20" height="3" class="inkf"/>`,['cap+diode',486,346])}
+ ${P('mcu',[540,110,72,82],`<rect x="546" y="116" width="60" height="70" rx="3" class="pcb"/><rect x="562" y="134" width="28" height="28" rx="2" class="chip"/><path d="M552 126 H600 M552 178 H600 M556 140 V160 M596 140 V160" class="cu"/>`,['board',548,204])}
+ ${P('relay',[540,208,72,36],`<rect x="548" y="214" width="32" height="24" rx="2" class="sigf"/><path id="mwRly" d="M586 232 l14 -8" style="stroke:var(--ink);stroke-width:2"/><circle cx="586" cy="232" r="2" class="inkf"/><circle cx="602" cy="232" r="2" class="inkf"/>`,['relay',548,256])}
+ ${P('keypad',[540,262,72,84],`<g style="fill:var(--panel);stroke:var(--line)"><rect x="548" y="268" width="26" height="16" rx="3"/><rect x="580" y="268" width="26" height="16" rx="3"/><rect x="548" y="290" width="26" height="16" rx="3"/><rect x="580" y="290" width="26" height="16" rx="3"/></g><rect x="548" y="314" width="58" height="24" rx="4" class="sigf"/><text class="lblW" x="577" y="330" text-anchor="middle">START</text>`)}
+ `,
+ cover:`<rect x="20" y="30" width="600" height="340" rx="14" class="m" stroke-width="2"/><rect x="36" y="50" width="472" height="300" rx="10" class="m2"/><rect x="62" y="78" width="358" height="244" rx="8" class="glass"/><rect x="62" y="78" width="358" height="244" rx="8" fill="url(#mesh)"/><rect x="442" y="86" width="44" height="228" rx="8" class="m"/><rect x="522" y="112" width="88" height="238" rx="8" class="m2"/><rect x="548" y="314" width="58" height="24" rx="4" class="sigf"/><text class="lblW" x="577" y="330" text-anchor="middle">START</text><text class="lbl" x="66" y="342">case on · take it off to see the brain</text>`,
+ top:`<rect x="540" y="58" width="72" height="40" rx="4" class="chip"/><text id="mwLcd" class="lcd" x="576" y="85" text-anchor="middle">0:30</text>`,
+ parts:{
+  fuse:{name:'Mains fuse',role:'A ceramic or glass fuse, typically 15–20 A, right where wall power enters.',decides:'Nothing. It melts when the current spikes.',code:'if current > rating:\n    wire melts  # whole oven dead',broken:'Blown fuse. Display dark, nothing responds.'},
+  keypad:{name:'Keypad',role:'A membrane switch. START only closes a contact.',decides:'Nothing. It reports a key press to the board.',code:'on_press(START):\n    board.send(KEY_START)',broken:'Dead keys. The board never hears START.'},
+  mcu:{name:'Control board',role:'The brain: a small microcontroller with a clock, timer, power level and safety checks.',decides:'Whether the door is shut, when the relay closes, for how long, and how hard to heat.',code:'if door.closed() and timer > 0:\n    relay.on()\nif power == 50%:\n    duty(on=15s, off=15s)',broken:'Display stays dark. Nothing starts.'},
+  door:{name:'Door interlocks ×3',role:'Primary (P), secondary (S) and monitor (M) switches, pressed by hooks on the door.',decides:'P and S cut power when the door opens. M is the last resort: if P ever welds shut, M shorts the line and blows the fuse.',code:'door.open -> P, S open -> no high voltage\nP welded + door.open -> M shorts -> fuse blows',broken:'Board reads the door as open and refuses to heat. That is the safety system doing its job.'},
+  relay:{name:'Power relay',role:'The board\'s hand: a few volts on its coil switch full wall power.',decides:'When the high-voltage side gets power. On 50% it clicks on and off.',code:'relay.on() -> 230 V to the transformer',broken:'Lamp and turntable run, the high-voltage side never gets power. Food stays cold.'},
+  transformer:{name:'HV transformer',role:'Steps 230 V up to about 2,000 V. A second 3 V winding heats the magnetron filament.',decides:'Nothing. Iron and copper.',code:'230 V x turns ratio (≈ 9) ≈ 2,000 V AC',broken:'Loud hum, maybe a tripped breaker. No heat.',warn:'Lethal output. Never probe it while powered.'},
+  capacitor:{name:'HV capacitor + diode',role:'A half-wave voltage doubler: together they push about 4,000 V into the magnetron.',decides:'Nothing. Physics.',code:'V_peak ≈ 2 x 2,000 V ≈ 4,000 V (pulsed DC)',broken:'It shorts. The fuse blows and everything goes dark.',warn:'Can hold a lethal charge after unplugging. Most have a bleeder resistor, but you can\'t trust it.'},
+  magnetron:{name:'Magnetron',role:'A vacuum tube. High voltage plus two magnets make electrons spin and radiate 2.45 GHz.',decides:'Nothing. It fires whenever it has high voltage and a hot filament.',code:'4 kV + magnetic field\n  -> electrons circle the cavities\n  -> 2.45 GHz out of the antenna',broken:'Everything hums and spins. Food stays cold.'},
+  fan:{name:'Cooling fan',role:'Magnetrons turn only ~65% of their power into microwaves. The rest is heat on those fins.',decides:'Nothing. Runs while cooking.',code:'relay.on -> fan.on\nmagnetron.temp > limit -> thermal cutoff opens',broken:'Magnetron overheats. The thermal cutoff on it opens mid-cook.'},
+  turntable:{name:'Turntable motor',role:'A tiny synchronous motor, about 5 rpm.',decides:'Nothing. It drags food through the hot and cold spots of the standing wave.',code:'relay.on -> motor @ 5 rpm',broken:'Hot edges, frozen middle.'}
+ },
+ seq:[
+  ['fuse','Wall power passes the mains fuse'],
+  ['keypad','START pressed'],
+  ['mcu',c=>`Board starts the 0:30 timer at ${c.mode?'50%':'full'} power`],
+  ['door','Interlocks P and S closed. Door is shut'],
+  ['relay','Relay clicks. 230 V to the high-voltage side',c=>{c.el('mwRly').setAttribute('d','M586 232 l16 0');return sleep(250)}],
+  ['transformer','Transformer steps it up to ≈ 2,000 V'],
+  ['capacitor','Capacitor + diode double it to ≈ 4,000 V'],
+  ['magnetron','Magnetron fires: 2.45 GHz into the waveguide']
+ ],
+ fail:{
+  fuse:c=>{c.el('mwLcd').textContent='';return 'Blown fuse. Nothing has power: no display, no light, no sound.'},
+  mcu:c=>{c.el('mwLcd').textContent='';return 'Board is dead. Display dark. Nothing starts.'},
+  capacitor:c=>{c.el('mwLcd').textContent='';c.el('mwFuse').style.stroke='var(--hot)';c.flash();return 'Capacitor shorts. The fuse blows and the whole microwave goes dark.'},
+  relay:async c=>{await c.app.cook(c,{noHeat:true});return 'Relay never closed. Lamp on, plate spinning, food still 4°C after 30 s.'},
+  magnetron:async c=>{await c.app.cook(c,{noHeat:true,hum:true});return 'Magnetron dead. 30 seconds of humming and spinning. Food still 4°C.'},
+  transformer:'No high voltage. A loud hum and a cold plate.'
+ },
+ async cook(c,o={}){
+  if(!c.broken('turntable'))c.spin('mwPlate',true,'spinS');
+  if(!o.noHeat&&!c.broken('fan'))c.spin('mwFan',true);
+  let food=4,tripped=false,said=false,edge=4;
+  await c.countdown(30,5200,(left,k,dt)=>{
+   let on=!o.noHeat&&!tripped&&(!c.mode||Math.floor(k*6)%2===0);
+   if(c.mode&&!said&&k>.17){said=true;c.log('50% is not a weaker beam: the board switches the magnetron fully on and off','note')}
+   if(c.broken('fan')&&!tripped&&k>.45){tripped=true;on=false;c.log('Magnetron fins overheat. Thermal cutoff opens','fail')}
+   c.el('mwGlow').setAttribute('opacity',on?.55:0);c.el('mwWaves').setAttribute('opacity',on?1:0);
+   c.el('mwMag').style.fill=on?'var(--hot)':'var(--glass)';c.set('mag',on?'on':tripped?'cutoff':'off');
+   if(on){food+=dt*64/5200;edge+=dt*86/5200}
+   const t=c.broken('turntable')&&!o.noHeat?`${Math.round(edge)}/${Math.round(food*.2+4)}°C`:`${Math.round(food)}°C`;
+   c.el('mwFood').textContent=t;c.set('food',t);c.chart(food);
+  });
+  c.spin('mwPlate',false);c.spin('mwFan',false);c.el('mwGlow').setAttribute('opacity',0);c.el('mwWaves').setAttribute('opacity',0);c.el('mwMag').style.fill='var(--glass)';c.set('mag','off');
+  return {food,tripped};
+ },
+ async run(c){
+  await c.move([410,54]);c.log('Waves bounce around the metal box. Water molecules flip back and forth 2.45 billion times a second');
+  const r=await this.cook(c);
+  if(r.tripped)return {msg:`Stopped early. Food only ${Math.round(r.food)}°C. The fan was the problem.`,cls:'fail'};
+  if(c.broken('turntable'))return {msg:'Beep. Edges boiling, middle still cold. The turntable was the problem.',cls:'fail'};
+  return {msg:`Beep. 0:00. Food ${Math.round(r.food)}°C.${c.mode?' Half the energy, same 30 seconds.':''}`};
+ }
+});
+
+/* ===== COFFEE ===== */
+const gaugeTicks=(cx,cy,r)=>[0,3,6,9,12,15].map(b=>{const a=(-120+b*16)*Math.PI/180;return `<line x1="${cx+Math.sin(a)*(r-8)}" y1="${cy-Math.cos(a)*(r-8)}" x2="${cx+Math.sin(a)*(r-2)}" y2="${cy-Math.cos(a)*(r-2)}" class="inkS"/><text class="lbl" x="${cx+Math.sin(a)*(r-17)}" y="${cy-Math.cos(a)*(r-17)+3}" text-anchor="middle">${b}</text>`}).join('');
+APPS.push({
+ id:'coffee',name:'Coffee machine',
+ blurb:'A bean-to-cup espresso machine is a recipe runner: grind, tamp, heat, pump, count. The magic number is 9 bar at about 93°C, and the board only knows it reached them because two sensors tell it.',
+ spec:[['Brew pressure','≈ 9 bar'],['Pump max','15 bar'],['Brew temp','90–96°C'],['Espresso dose','7–10 g']],
+ modes:['Espresso 40 ml','Lungo 110 ml'],
+ readouts:[['bar','Pressure','0.0 bar'],['ml','In the cup','0 ml'],['temp','Water','20°C']],
+ chart:['Brew pressure','bar',0,15],
+ base:`
+ <path class="pipe" d="M124 300 L146 304 M180 304 H198 M268 303 H286 M330 272 V206 M366 188 H430"/>
+ <path id="cfF1" class="flowL" d="M124 300 L146 304 M180 304 H198 M268 303 H286 M330 272 V206 M366 188 H430"/>
+ ${P('level',[38,64,92,240],`<rect x="44" y="70" width="80" height="230" rx="8" style="fill:var(--panel);stroke:var(--line)" opacity=".9"/><rect id="cfWater" x="48" y="118" width="72" height="178" rx="5" class="waterf"/><rect x="80" y="78" width="10" height="216" rx="3" class="m2"/><rect id="cfFloat" x="75" y="110" width="20" height="14" rx="3" class="warnf"/><rect x="96" y="250" width="8" height="18" class="inkf"/>`,['tank · float + reed',40,316])}
+ ${P('flow',[140,286,46,36],`<circle cx="163" cy="304" r="15" class="m"/><g id="cfTurb"><path d="M163 292 V316 M151 304 H175" class="cuW"/></g>`,['flow meter',138,334])}
+ ${P('pump',[194,282,78,44],`<rect x="198" y="288" width="70" height="30" rx="8" class="m"/><path d="M212 288 V318 M222 288 V318 M232 288 V318 M242 288 V318 M252 288 V318" class="cu"/>`,['vibe pump',198,338])}
+ ${P('heater',[282,266,94,60],`<rect x="286" y="272" width="86" height="48" rx="6" class="m"/><path id="cfCoil" class="coilH" d="M294 282 h70 v10 h-70 v10 h70 v10 h-70"/>`,['thermoblock',286,338])}
+ ${P('ntc',[380,272,30,26],`<path d="M372 286 H389" class="cu"/><circle cx="395" cy="286" r="6" class="inkf"/>`,['ntc',383,310])}
+ ${P('valve',[296,166,70,42],`<rect x="302" y="172" width="34" height="30" rx="3" class="sigf"/><rect x="336" y="180" width="24" height="14" class="m"/>`,['3-way valve',298,220])}
+ <path d="M318 202 V236 Q318 246 330 248 H420" style="fill:none;stroke:var(--metal2);stroke-width:4"/><path id="cfVent" class="flowL" d="M318 202 V236 Q318 246 330 248 H420"/>
+ ${P('grinder',[408,38,116,108],`<path d="M414 44 H518 L496 98 H436 Z" style="fill:var(--panel);stroke:var(--line)"/>${[[440,60],[458,56],[476,62],[494,58],[452,74],[470,78],[488,72],[462,88]].map(([x,y])=>`<ellipse cx="${x}" cy="${y}" rx="6" ry="4" style="fill:#6B4428"/>`).join('')}<g id="cfBurr"><circle cx="452" cy="120" r="16" class="m"/><path d="M452 106 V134 M438 120 H466 M442 110 L462 130 M462 110 L442 130" style="stroke:var(--line)"/></g><circle cx="490" cy="120" r="16" class="m"/>`,['grinder · burrs',410,154])}
+ ${P('brew',[418,162,96,96],`<rect x="430" y="168" width="72" height="82" rx="6" class="m2"/><rect id="cfPiston" x="436" y="172" width="60" height="14" rx="3" class="m"/><rect id="cfPuck" x="440" y="236" width="52" height="0" style="fill:#5A3A22"/><rect x="458" y="250" width="16" height="10" class="m"/>`,['brew unit',420,272])}
+ <clipPath id="cfClip"><path d="M440 300 h56 l-6 46 h-44z"/></clipPath>
+ <rect id="cfCoffee" x="436" y="346" width="64" height="0" clip-path="url(#cfClip)" style="fill:#7A4A26"/>
+ <path d="M440 300 h56 l-6 46 h-44z" style="fill:none;stroke:var(--ink);stroke-width:1.5"/>
+ <line id="cfStream" x1="466" y1="262" x2="466" y2="344" style="stroke:#7A4A26;stroke-width:3;stroke-linecap:round" opacity="0"/>
+ <rect x="414" y="352" width="112" height="9" rx="2" class="m2"/>
+ <circle cx="580" cy="190" r="36" class="m"/>${gaugeTicks(580,190,36)}
+ <line id="cfNeedle" x1="580" y1="190" x2="580" y2="162" style="stroke:var(--hot);stroke-width:2.5;stroke-linecap:round" transform="rotate(-120 580 190)"/><circle cx="580" cy="190" r="3" class="inkf"/><text class="lbl" x="580" y="218" text-anchor="middle">bar</text>
+ ${P('mcu',[546,52,66,86],`<rect x="552" y="58" width="54" height="74" rx="3" class="pcb"/><rect x="566" y="78" width="26" height="26" rx="2" class="chip"/><path d="M556 68 H602 M556 124 H602" class="cu"/>`,['board',552,150])}
+ ${P('keypad',[546,240,66,100],`<rect x="552" y="248" width="54" height="40" rx="5" class="sigf"/><text class="lblW" x="579" y="272" text-anchor="middle">ESPR</text><rect x="552" y="294" width="54" height="40" rx="5" style="fill:var(--panel);stroke:var(--line)"/><text class="lblI" x="579" y="318" text-anchor="middle">LUNGO</text>`)}
+ `,
+ cover:`<rect x="26" y="34" width="508" height="330" rx="16" class="m" stroke-width="2"/><rect x="420" y="268" width="100" height="90" rx="8" class="glass"/><rect x="50" y="60" width="340" height="40" rx="6" class="m2"/><circle cx="470" cy="110" r="40" class="m2"/><text class="lbl" x="56" y="84">case on · take it off to see the brain</text>`,
+ parts:{
+  keypad:{name:'Buttons',role:'Two capacitive buttons: espresso and lungo.',decides:'Nothing. They pick the recipe.',code:'on_press(ESPRESSO): recipe = {grind: 9 g, water: 40 ml}',broken:'No response to touches.'},
+  mcu:{name:'Control board',role:'Runs the recipe as a fixed sequence of steps with timeouts.',decides:'Every step: is there water, is the puck tamped, is the water hot, did the right amount flow.',code:'check(water) -> grind(9 g) -> tamp()\nheat_until(93°C) -> pump_until(pulses == 40 ml)\nvent()',broken:'Lights off. Nothing runs.'},
+  level:{name:'Water level (float + reed)',role:'A magnet in a floating cap. When water is high enough, the magnet closes a reed switch outside the tank.',decides:'Nothing by itself. The board refuses to pump air.',code:'if not reed.closed:\n    show("Fill water"); stop()',broken:'Board thinks the tank is empty: "Fill water", even when it is full.'},
+  grinder:{name:'Grinder (conical burrs)',role:'A DC motor turns one burr against a fixed one. The dose is set by grind time, not weight.',decides:'Nothing. The board just times it.',code:'grinder.on(); sleep(dose_time)  # ≈ 9 g\ngrinder.off()',broken:'No grounds. Unless the board watches motor current, you get a cup of hot water.'},
+  brew:{name:'Brew unit',role:'A chamber with a motor-driven piston that tamps the grounds, then ejects the used puck.',decides:'Microswitches tell the board where the piston is.',code:'piston.down() until switch_tamped\n... brew ...\npiston.up(); eject(puck)',broken:'Can\'t close or the switch never reports. "Brew unit" error.'},
+  heater:{name:'Thermoblock',role:'Water runs through a channel in a heated aluminium block. Heats on the fly in under a minute.',decides:'Nothing. The board switches it through a triac.',code:'triac.duty = pid(93 - ntc.temp)',broken:'Block stays cold. Board waits for 93°C and times out: heater error.'},
+  ntc:{name:'NTC thermistor',role:'A resistor whose value drops as it warms. The board reads it to know the water temperature.',decides:'Nothing. It is the board\'s thermometer.',code:'temp = beta_formula(adc.read(NTC))\nif reading is open/short: fault',broken:'Board reads an open circuit. It can\'t trust the temperature, so the heater never turns on.'},
+  pump:{name:'Vibratory pump',role:'An electromagnet shakes a piston 50 times a second. Can reach 15 bar; a valve keeps brewing near 9.',decides:'Nothing. On or off.',code:'pump.on() until flow.pulses >= target',broken:'Coil dead. No pressure, nothing in the cup.'},
+  flow:{name:'Flow meter',role:'A tiny turbine with a magnet. Every turn is a pulse; pulses = millilitres.',decides:'Nothing. The board counts.',code:'ml = pulses / pulses_per_ml\nif no pulses for 3 s: stop()  # blocked or empty',broken:'No pulses. The board thinks nothing is moving and stops after a few seconds.'},
+  valve:{name:'3-way solenoid valve',role:'Opens after the shot to dump trapped pressure into the drip tray.',decides:'Nothing. Opens on command.',code:'pump.off(); valve.open()  # dry puck',broken:'Pressure stays in the puck: soupy, wet grounds and a spray when the unit opens.'}
+ },
+ seq:[
+  ['keypad',c=>c.mode?'LUNGO pressed: 110 ml recipe':'ESPRESSO pressed: 40 ml recipe'],
+  ['mcu','Board runs the recipe: check, grind, tamp, heat, pump'],
+  ['level','Float magnet closes the reed switch: tank has water'],
+  ['grinder','Burrs grind ≈ 9 g, dosed by time',async c=>{c.spin('cfBurr',true);await sleep(1100);c.spin('cfBurr',false);c.el('cfPuck').setAttribute('height',12);c.el('cfPuck').setAttribute('y',224)}],
+  ['brew','Piston drops and tamps the puck',async c=>{await c.anim(600,k=>{c.el('cfPiston').setAttribute('y',172+38*ease(k))})}],
+  ['heater','Thermoblock heats water on the fly',async c=>{c.el('cfCoil').classList.add('on');await c.anim(900,k=>{c.set('temp',Math.round(20+73*k)+'°C')})}],
+  ['ntc','NTC reads 93°C. Board holds it there'],
+  ['pump','Vibratory pump starts'],
+  ['flow','Flow meter starts counting turbine pulses']
+ ],
+ fail:{
+  level:'Reed switch stays open. "Fill water" with a full tank. Nothing runs.',
+  grinder:async c=>{c.log('No grounds reach the brew unit','fail');c.set('temp','93°C');await c.app.pour(c,{pale:true});return 'You get hot brown-ish water. The machine thinks it made coffee.'},
+  heater:async c=>{c.el('cfCoil').classList.remove('on');await c.anim(1600,k=>{c.set('temp','20°C')});return 'Thermoblock stays at 20°C. The board times out: heater error.'},
+  ntc:c=>{c.el('cfCoil').classList.remove('on');c.set('temp','?? °C');return 'NTC reads open circuit. No trusted temperature, so no heat. Error.'},
+  pump:'Pump coil dead. 0 bar. Nothing reaches the cup.',
+  flow:async c=>{c.el('cfF1').classList.add('on');c.el('cfTurb').classList.remove('spin');await sleep(1200);c.el('cfF1').classList.remove('on');return 'No pulses for 3 seconds. The board assumes a blockage and stops the pump.'}
+ },
+ async pour(c,o={}){
+  const target=c.mode?110:40;
+  c.el('cfF1').classList.add('on');c.spin('cfTurb',true);
+  c.el('cfStream').setAttribute('opacity',1);if(o.pale){c.el('cfStream').style.stroke='#B98A5A';c.el('cfCoffee').style.fill='#B98A5A'}
+  c.log('Pre-infusion: ≈ 2 bar for a moment to soak the puck','note');
+  let said=false;
+  await c.anim(5600,(k)=>{
+   const bar=o.pale?clamp(k*12,0,2.5):(k<.18?2*k/.18:clamp(2+(k-.18)*40,0,9));
+   const ml=target*clamp((k-.12)/.88,0,1);
+   if(!said&&bar>=8.9){said=true;c.log('9 bar reached. Over-pressure valve bleeds the rest of the pump\'s 15 bar')}
+   c.el('cfNeedle').setAttribute('transform',`rotate(${-120+bar*16} 580 190)`);
+   c.el('cfCoffee').setAttribute('height',46*ml/110+(c.mode?0:12*ml/40));c.el('cfCoffee').setAttribute('y',346-(46*ml/110+(c.mode?0:12*ml/40)));
+   c.set('bar',bar.toFixed(1)+' bar');c.set('ml',Math.round(ml)+' ml');c.chart(bar);
+  });
+  c.el('cfStream').setAttribute('opacity',0);c.el('cfF1').classList.remove('on');c.spin('cfTurb',false);
+  c.log(`${target} ml of pulses counted. Pump off`);
+  c.el('cfCoil').classList.remove('on');
+ },
+ async run(c){
+  await this.pour(c);
+  const target=c.mode?110:40;
+  if(c.broken('valve')){c.el('cfNeedle').setAttribute('transform','rotate(-24 580 190)');c.set('bar','6.0 bar');return {msg:'Valve stuck shut. 6 bar trapped in the puck. Soupy grounds and a spray when the unit opens.',cls:'fail'}}
+  c.el('cfVent').classList.add('on');
+  await c.anim(900,k=>{const b=9*(1-k);c.el('cfNeedle').setAttribute('transform',`rotate(${-120+b*16} 580 190)`);c.set('bar',b.toFixed(1)+' bar');c.chart(b)});
+  c.el('cfVent').classList.remove('on');c.log('3-way valve vents the pressure into the drip tray: dry puck');
+  await c.anim(600,k=>{c.el('cfPiston').setAttribute('y',210-38*ease(k))});c.el('cfPuck').setAttribute('height',0);
+  return {msg:`Done: ${target} ml, 93°C, 9 bar. In real time about 25–30 s of extraction.`};
+ }
+});
+
+/* ===== ROBOT VACUUM ===== */
+const RB={segs:(()=>{const s=[];const R=(x,y,w,h)=>s.push([x,y,x+w,y],[x+w,y,x+w,y+h],[x+w,y+h,x,y+h],[x,y+h,x,y]);R(40,50,344,300);R(56,60,130,44);R(240,188,62,44);return s})()};
+function cast(px,py,a){const dx=Math.cos(a),dy=Math.sin(a);let best=500;for(const [x1,y1,x2,y2] of RB.segs){const ex=x2-x1,ey=y2-y1,den=dx*ey-dy*ex;if(Math.abs(den)<1e-9)continue;const t=((x1-px)*ey-(y1-py)*ex)/den,u=((x1-px)*dy-(y1-py)*dx)/den;if(t>0&&u>=0&&u<=1&&t<best)best=t}return best}
+APPS.push({
+ id:'vacuum',name:'Robot vacuum',
+ blurb:'A spinning laser draws your floor plan 5 times a second while gyro and wheel counters guess where the robot is between scans. Everything it does is a decision about that map.',
+ spec:[['LiDAR','≈ 5 rev/s, 360 points/turn'],['Battery','14.4 V Li-ion'],['Height','≈ 9–10 cm'],['Returns to dock','≈ 15–20% battery']],
+ readouts:[['cov','Covered','0%'],['batt','Battery','100%'],['dust','Dust','0.0 g']],
+ chart:['Floor covered','%',0,100],
+ base:`
+ <rect x="40" y="50" width="344" height="300" style="fill:var(--panel);stroke:var(--ink);stroke-width:3"/>
+ <rect x="56" y="60" width="130" height="44" rx="6" class="m2"/><text class="lbl" x="64" y="86">sofa</text>
+ <rect x="240" y="188" width="62" height="44" rx="4" class="m2"/><text class="lbl" x="250" y="214">table</text>
+ <rect x="80" y="252" width="112" height="58" rx="4" style="fill:#1E1A1A"/><text class="lblW" x="88" y="268">black rug</text>
+ <rect x="330" y="286" width="54" height="64" fill="url(#hatch)" style="stroke:var(--hot)"/><text class="lbl" x="334" y="282" style="fill:var(--hot)">stairs ↓</text>
+ <rect x="46" y="340" width="28" height="10" class="sigf"/><text class="lbl" x="78" y="349">dock</text>
+ <g id="rbMap"></g>
+ <polyline id="rbTrail" points="" style="fill:none;stroke:var(--signal);stroke-width:18;stroke-linecap:round;stroke-linejoin:round;opacity:.1"/>
+ <path id="rbRays" d="" style="stroke:var(--signal);stroke-width:.8;opacity:.35;fill:none"/>
+ <ellipse id="rbSock" cx="272" cy="128" rx="7" ry="5" class="hotf"/>
+ <g id="rbBot" transform="translate(60 334)"><circle r="11" class="m" style="stroke:var(--ink)"/><circle r="4" class="sigf"/><line x1="0" y1="0" x2="0" y2="-11" class="inkS"/></g>
+ <text class="lbl" x="44" y="44">your living room · what the robot maps</text>
+ <circle cx="515" cy="225" r="100" class="m2" style="stroke:var(--ink)"/>
+ ${P('brush',[398,118,36,36],`<g id="rbBrush">${[0,72,144,216,288].map(a=>`<line x1="416" y1="136" x2="416" y2="120" transform="rotate(${a} 416 136)" style="stroke:var(--ink);stroke-width:2"/>`).join('')}</g>`,['side brush',396,166])}
+ ${P('bumper',[436,120,160,26],`<path d="M440 150 A100 100 0 0 1 590 150" style="fill:none;stroke:var(--ink);stroke-width:8;opacity:.75"/>`)}
+ ${P('lidar',[492,156,46,46],`<circle cx="515" cy="179" r="20" class="m" style="stroke:var(--ink)"/><g id="rbTur"><circle cx="515" cy="179" r="11" class="chip"/><rect x="511" y="168" width="8" height="5" class="hotf"/></g>`,['lidar',540,176])}
+ ${P('cliff',[[426,206,22,22],[582,206,22,22]],`<circle cx="437" cy="217" r="7" class="warnf"/><circle cx="593" cy="217" r="7" class="warnf"/>`,['cliff ir',420,242])}
+ ${P('soc',[464,214,76,36],`<rect x="466" y="216" width="72" height="32" rx="3" class="pcb"/><rect x="490" y="221" width="22" height="22" rx="2" class="chip"/>`)}
+ ${P('imu',[546,218,28,28],`<rect x="550" y="222" width="20" height="20" rx="2" class="chip"/><text class="lblW" x="560" y="236" text-anchor="middle">G</text>`)}
+ ${P('wheels',[[420,250,30,56],[580,250,30,56]],`<rect x="426" y="254" width="18" height="48" rx="6" class="chip"/><rect x="586" y="254" width="18" height="48" rx="6" class="chip"/>`,['wheels + encoders',448,320])}
+ ${P('battery',[466,256,98,28],`<rect x="470" y="260" width="90" height="20" rx="3" class="m"/><rect id="rbBattBar" x="472" y="262" width="86" height="16" rx="2" style="fill:var(--ok)"/>`)}
+ ${P('fan',[488,288,56,26],`<rect x="492" y="290" width="48" height="22" rx="8" class="m"/>${fan(516,301,10,'rbFan')}`)}
+ ${P('keypad',[592,322,36,36],`<circle cx="610" cy="340" r="13" class="sigf"/><text class="lblW" x="610" y="344" text-anchor="middle">▶</text>`)}
+ <text class="lbl" x="474" y="116">robot · top view</text>`,
+ cover:`<circle cx="515" cy="225" r="102" class="m" style="stroke:var(--ink);stroke-width:2"/><circle cx="515" cy="179" r="22" class="m2"/><text class="lbl" x="470" y="260">cover on</text>`,
+ parts:{
+  keypad:{name:'Start button / app',role:'A button on top, or a tap in the app over Wi-Fi.',decides:'Nothing. It starts a cleaning job.',code:'on_start(): soc.job = CLEAN_ALL',broken:'No reaction to the button or the app.'},
+  soc:{name:'Main SoC',role:'An ARM chip running the SLAM software: builds the map and finds itself on it at the same time.',decides:'Everything: lanes, detours, when to go home.',code:'map, pose = slam(lidar_scan, odometry)\npath = boustrophedon(map.free - map.no_go)\nif battery < 15%: go_home()',broken:'Boots and blinks red. No job runs.'},
+  battery:{name:'Battery pack',role:'4 Li-ion cells in series: 14.4 V, a few Ah. A BMS chip watches every cell.',decides:'The BMS cuts power if a cell sags too low.',code:'if min(cell_v) < 3.0 V: bms.cut()\nif soc < 15%: robot.go_home()',broken:'A weak cell. Percentage collapses mid-room and the robot dies before reaching the dock.'},
+  lidar:{name:'LiDAR (LDS)',role:'A laser and sensor on a turret spinning ≈ 5 times a second, measuring ≈ 360 distances per turn.',decides:'Nothing. It reports distances; the SoC turns them into walls.',code:'for angle in 0..359:\n    scan[angle] = distance(laser)\nsoc.update_map(scan)',broken:'No map. The robot falls back to random bouncing.'},
+  imu:{soft:true,name:'Gyro (IMU)',role:'Measures turning rate. Combined with wheel counts it says how far and which way the robot moved between scans.',decides:'Nothing. Odometry input.',code:'heading += gyro.z * dt\npose += wheel_ticks * cos/sin(heading)',broken:'Heading drifts a few degrees per turn. Lanes go crooked and the map smears.'},
+  bumper:{name:'Bumper',role:'A spring-loaded front shell over two microswitches. Catches what the laser can\'t see: things lower than the turret.',decides:'Nothing. It reports a hit.',code:'on bump: stop(); back_up(2 cm); turn(); go_around()',broken:'Low objects (socks, cables) get pushed across the room instead of avoided.'},
+  cliff:{name:'Cliff sensors',role:'Infrared LEDs pointed at the floor. If no light comes back, there is a drop.',decides:'Nothing. They report "floor" or "no floor".',code:'if ir_return < threshold: stop(); reverse()',broken:'It drives off the stairs.',warn:'Real quirk: black rugs absorb infrared, so many robots read them as a cliff and refuse to clean them.'},
+  wheels:{name:'Wheel motors + encoders',role:'Two DC motors with encoders that count wheel turns.',decides:'Nothing. They report ticks.',code:'if motor_current high and ticks == 0: error("wheel stuck")',broken:'One wheel dead. The robot spins in place, then stops with "wheel stuck".'},
+  fan:{name:'Suction fan',role:'A brushless motor at tens of thousands of rpm pulling air through the bin.',decides:'Nothing. Power level only.',code:'fan.rpm = mode == MAX ? high : normal',broken:'Drives a perfect route and picks up nothing.'},
+  brush:{name:'Side brush',role:'Spins dust out of corners and along walls into the main brush path.',decides:'Nothing.',code:'brush.on() while cleaning',broken:'Corners and wall edges stay dirty.'}
+ },
+ seq:[
+  ['keypad','Start pressed'],
+  ['soc','SoC boots the SLAM software'],
+  ['battery','Battery 100%. BMS sees 4 healthy cells'],
+  ['lidar','LiDAR spins up: 5 turns a second, ≈ 360 distances per turn',async c=>{c.spin('rbTur',true);await c.app.scanSpin(c,1100)}],
+  ['imu','Gyro and wheel encoders track every move between scans']
+ ],
+ fail:{
+  lidar:async c=>{c.log('No laser data. Map empty','fail');return c.app.clean(c)},
+  wheels:async c=>{c.log('Left wheel not turning','fail');await c.anim(2200,k=>{c.el('rbBot').setAttribute('transform',`translate(${60+k*8} ${334-k*20}) rotate(${k*720})`)});return 'Spins in place. Encoder shows zero ticks on the left: "wheel stuck" error.'}
+ },
+ st:null,
+ draw(c,x,y,ang){
+  const s=this.st;c.el('rbBot').setAttribute('transform',`translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${ang})`);
+  if(!c.broken('lidar')){
+   s.phase+=.55;let d='';
+   for(let i=0;i<30;i++){const a=s.phase+i*Math.PI*2/30;const t=cast(x,y,a);let hx=x+Math.cos(a)*t,hy=y+Math.sin(a)*t;d+=`M${x.toFixed(1)} ${y.toFixed(1)}L${hx.toFixed(1)} ${hy.toFixed(1)}`;
+    if(s.drift){const dx=hx-x,dy=hy-y,cs=Math.cos(s.drift),sn=Math.sin(s.drift);hx=x+dx*cs-dy*sn;hy=y+dx*sn+dy*cs}
+    const key=Math.round(hx/3)+','+Math.round(hy/3);if(!s.map.has(key)&&s.map.size<2600){s.map.add(key);s.mapFrag.push(`<rect x="${(Math.round(hx/3)*3-1).toFixed(0)}" y="${(Math.round(hy/3)*3-1).toFixed(0)}" width="2.4" height="2.4" style="fill:var(--signal)"/>`)}}
+   c.el('rbRays').setAttribute('d',d);
+   if(s.mapFrag.length>40){c.el('rbMap').insertAdjacentHTML('beforeend',s.mapFrag.join(''));s.mapFrag=[]}
+  }
+  for(let gx=-1;gx<=1;gx++)for(let gy=-1;gy<=1;gy++){const cx=Math.floor((x-40)/12)+gx,cy=Math.floor((y-50)/12)+gy;if(cx>=0&&cy>=0&&cx<29&&cy<25)s.cells.add(cx+','+cy)}
+  const last=s.trail[s.trail.length-1];if(!last||Math.hypot(last[0]-x,last[1]-y)>5){s.trail.push([x,y]);c.el('rbTrail').setAttribute('points',s.trail.map(p=>p[0].toFixed(0)+','+p[1].toFixed(0)).join(' '))}
+  const cov=Math.min(100,s.cells.size/s.free*100);c.set('cov',Math.round(cov)+'%');c.set('batt',Math.round(s.batt)+'%');c.set('dust',s.dust.toFixed(1)+' g');
+  c.el('rbBattBar').setAttribute('width',86*s.batt/100);
+  if(++s.tick%3===0)c.chart(cov);
+ },
+ async scanSpin(c,ms){this.st=this.st||this.newSt();await c.anim(ms,()=>{this.draw(c,60,334,0)})},
+ newSt(){let free=0;for(let i=0;i<29;i++)for(let j=0;j<25;j++){const x=40+i*12+6,y=50+j*12+6;const inR=(r)=>x>r[0]&&x<r[0]+r[2]&&y>r[1]&&y<r[1]+r[3];if(!inR([56,60,130,44])&&!inR([240,188,62,44])&&!inR([330,286,54,64]))free++}return {phase:0,map:new Set(),mapFrag:[],cells:new Set(),trail:[],free:free*.93,batt:100,dust:0,tick:0,drift:0}},
+ async clean(c){
+  const s=this.st=this.st||this.newSt();const b=id=>c.broken(id);
+  if(!b('fan'))c.spin('rbFan',true);if(!b('brush'))c.spin('rbBrush',true);c.spin('rbTur',!b('lidar'));
+  let w=[];
+  const ev={};
+  if(b('lidar')){w=[[60,334],[150,140],[318,132],[200,330],[62,200],[318,262],[120,170],[300,330],[70,240],[318,150],[92,124],[250,300],[60,334]]}
+  else{
+   w.push([60,334]);
+   const rows=[128,152,176,200,224,248,272,296,320];
+   rows.forEach((y,i)=>{let a=58,bx=318;if(y===200||y===224)bx=226;if((y===272||y===296)&&!b('cliff'))a=204;const right=i%2===0;
+    if(i===0){w.push([a,y]);if(!b('bumper')){w.push([255,y,'bump'],[255,110],[292,110],[292,y])}w.push([bx,y]);return}
+    if(y===272)w.push(right?[a,y,'rug']:[bx,y,'rug']);
+    w.push(...(right?[[a,y],[bx,y]]:[[bx,y],[a,y]]))});
+   if(b('cliff'))w.push([356,320,'fall']);else w.push([60,334]);
+   if(b('imu'))w=w.map(([x,y,e],i)=>{const ang=Math.max(0,(y-128))/192*.3;const dx=x-58,dy=y-128;return [58+dx*Math.cos(ang)-dy*Math.sin(ang),128+dx*Math.sin(ang)+dy*Math.cos(ang),e]});
+  }
+  let total=0;for(let i=1;i<w.length;i++)total+=Math.hypot(w[i][0]-w[i-1][0],w[i][1]-w[i-1][1]);
+  let dist=0,halt=false,ang=0;
+  for(let i=1;i<w.length&&!halt;i++){
+   const [x0,y0]=w[i-1],[x1,y1,e]=w[i];const L=Math.hypot(x1-x0,y1-y0);if(L<1)continue;
+   ang=Math.atan2(y1-y0,x1-x0)*180/Math.PI+90;
+   if(e==='fall'){await c.anim(L/.45,k=>{this.draw(c,lerp(x0,x1,k),lerp(y0,y1,k),ang)});await c.anim(700,k=>{c.el('rbBot').setAttribute('transform',`translate(${x1} ${y1+k*30}) scale(${1-k*.6})`);c.el('rbBot').setAttribute('opacity',1-k)});halt='fall';break}
+   await c.anim(L/.5,(k,dt)=>{const x=lerp(x0,x1,k),y=lerp(y0,y1,k);const dd=.5*dt;dist+=dd;
+    s.batt=Math.max(0,100-dist*.0115*(b('battery')?4:1));s.dust+=b('fan')?0:dd*(b('brush')?.0009:.0015);
+    if(b('imu'))s.drift=Math.min(.3,dist/total*.3);
+    if(b('bumper')&&y<140&&x>250&&x<330){const sk=c.el('rbSock');sk.setAttribute('cx',Math.min(376,x+16))}
+    this.draw(c,x,y,ang);
+    if(b('battery')&&s.batt<=0){halt='batt';return true}
+   });
+   if(e==='bump'){c.log('Bumper hit. Something under the laser\'s plane (a sock). Back up, go around');await sleep(300)}
+   if(e==='rug'&&!ev.rug){ev.rug=1;c.log(b('cliff')?'Cliff sensors dead: drives right over the black rug':'Black rug ahead. No infrared bounces back, so the cliff sensors call it a drop. Skipped',b('cliff')?'fail':'note')}
+  }
+  c.spin('rbFan',false);c.spin('rbBrush',false);c.spin('rbTur',false);c.el('rbRays').setAttribute('d','');
+  c.el('rbMap').insertAdjacentHTML('beforeend',s.mapFrag.join(''));s.mapFrag=[];
+  const cov=Math.round(Math.min(100,s.cells.size/s.free*100));
+  if(halt==='fall')return {msg:'Cliff sensors blind. The laser never sees a drop below the floor, so it drove off the stairs.',cls:'fail'};
+  if(halt==='batt')return {msg:`A weak cell. Battery hit 0% at ${cov}% coverage, nowhere near the dock.`,cls:'fail'};
+  if(b('lidar'))return {msg:`Random bounce for the whole run: ${cov}% covered, no map, no idea where the dock is.`,cls:'fail'};
+  if(b('imu'))return {msg:`No gyro: heading drifted, lanes went diagonal, the map smeared. ${cov}% covered.`,cls:'fail'};
+  if(b('bumper'))return {msg:'Bumper dead: shoved the sock into the wall. The laser flies over anything that low.',cls:'fail'};
+  if(b('fan'))return {msg:`Perfect route, ${cov}% covered, 0.0 g in the bin. Suction was the problem.`,cls:'fail'};
+  if(b('brush'))return {msg:`Done, but ${s.dust.toFixed(1)} g instead of ~4 g: corners and edges stayed dirty.`,cls:'fail'};
+  return {msg:`Back on the dock. ${cov}% of the open floor, ${s.dust.toFixed(1)} g of dust, rug skipped on purpose.`};
+ },
+ async run(c){if(c.broken('wheels'))return {msg:await this.fail.wheels.call(this,c),cls:'fail'};return this.clean(c)},
+ reset(){this.st=null}
+});
+
+/* ===== WASHER ===== */
+APPS.push({
+ id:'washer',name:'Washing machine',
+ blurb:'A washing machine is a slow state machine: lock, weigh, fill, heat, tumble, drain, spin. It never sees water. It infers the level from air pressure in a tube and the load from how fast the drum coasts.',
+ spec:[['Heater','≈ 2 kW'],['Spin','up to 1,400 rpm'],['Water per wash','≈ 10–15 L'],['Door unlock','1–2 min after the end']],
+ modes:['Cotton 40°C','Quick 20°C'],
+ readouts:[['temp','Water','15°C'],['lit','Water in','0 L'],['rpm','Drum','0 rpm']],
+ chart:['Water temperature','°C',0,60],
+ base:`
+ <rect x="36" y="36" width="338" height="328" rx="10" class="m2"/>
+ <path class="pipe" d="M24 58 H58 M112 58 H124 M160 68 V92"/>
+ <path id="wsF1" class="flowL" d="M24 58 H58 M112 58 H124 M160 68 V92"/>
+ <path d="M306 60 H360 V330 H300" style="fill:none;stroke:var(--line);stroke-width:2.5"/>
+ <circle cx="204" cy="212" r="120" style="fill:var(--panel);stroke:var(--ink);stroke-width:2"/>
+ <clipPath id="wsClip"><circle cx="204" cy="212" r="117"/></clipPath>
+ <rect id="wsWater" x="84" y="332" width="240" height="0" clip-path="url(#wsClip)" class="waterf"/>
+ <g id="wsDrum"><circle cx="204" cy="212" r="100" fill="url(#holes)" style="stroke:var(--ink);stroke-width:4"/>${[0,120,240].map(a=>`<rect x="198" y="114" width="12" height="22" rx="3" transform="rotate(${a} 204 212)" class="m"/>`).join('')}<circle cx="204" cy="212" r="10" class="m"/></g>
+ <line x1="204" y1="212" x2="318" y2="349" style="stroke:var(--line);stroke-dasharray:4 4"/>
+ ${P('valve',[52,42,64,32],`<rect x="58" y="48" width="54" height="20" rx="4" class="sigf"/>`,['inlet valve',54,86])}
+ <rect x="124" y="46" width="72" height="24" rx="3" class="m"/><text class="lbl" x="130" y="62">detergent</text>
+ ${P('level',[262,42,50,36],`<rect x="268" y="48" width="38" height="24" rx="12" class="m"/><circle cx="287" cy="60" r="7" class="chip"/>`,['level sensor',248,90])}
+ ${P('lock',[318,196,30,32],`<rect x="322" y="200" width="22" height="24" rx="3" class="sigf"/><rect id="wsPin" x="330" y="206" width="6" height="12" class="inkf"/>`,['lock',350,216])}
+ ${P('heater',[140,314,124,18],`<path id="wsHeat" class="coilH" d="M146 324 l8 -6 l8 12 l8 -12 l8 12 l8 -12 l8 12 l8 -12 l8 12 l8 -12 l8 12 l8 -12 l8 12 l8 -6"/>`)}
+ ${P('ntc',[268,314,24,18],`<circle cx="280" cy="323" r="5" class="inkf"/>`)}
+ ${P('pump',[64,334,64,26],`<rect x="68" y="338" width="56" height="18" rx="5" class="m"/>${fan(96,347,9,'wsImp')}`,['drain pump',132,353])}
+ ${P('motor',[254,336,82,28],`<rect x="258" y="339" width="60" height="22" rx="6" class="m"/><circle cx="326" cy="350" r="7" class="cu"/>`,['motor + tacho',248,376])}
+ ${P('mcu',[420,46,96,66],`<rect x="426" y="52" width="84" height="54" rx="3" class="pcb"/><rect x="456" y="62" width="26" height="26" rx="2" class="chip"/><path d="M432 98 H504" class="cu"/>`,['board',426,124])}
+ <circle cx="540" cy="216" r="64" class="m"/>${[0,200,400,600,800,1000,1200,1400].map(r=>{const a=(-130+r/1400*260)*Math.PI/180;return `<line x1="${540+Math.sin(a)*52}" y1="${216-Math.cos(a)*52}" x2="${540+Math.sin(a)*60}" y2="${216-Math.cos(a)*60}" class="inkS"/>`}).join('')}
+ <line id="wsNeedle" x1="540" y1="216" x2="540" y2="166" style="stroke:var(--hot);stroke-width:3;stroke-linecap:round" transform="rotate(-130 540 216)"/><circle cx="540" cy="216" r="4" class="inkf"/>
+ <text id="wsRpm" class="big" x="540" y="262" text-anchor="middle" style="font-size:22px">0</text><text class="lbl" x="540" y="276" text-anchor="middle">rpm</text>
+ <text id="wsLoad" class="lbl" x="420" y="146">load: ?</text>
+ ${P('keypad',[420,300,110,62],`<circle cx="450" cy="331" r="22" class="m"/><line x1="450" y1="331" x2="450" y2="313" class="inkS"/><rect x="484" y="310" width="40" height="18" rx="4" class="sigf"/><text class="lblW" x="504" y="323" text-anchor="middle">START</text><rect x="484" y="334" width="40" height="18" rx="4" style="fill:var(--panel);stroke:var(--line)"/>`)}
+ `,
+ cover:`<rect x="24" y="30" width="362" height="340" rx="14" class="m" stroke-width="2"/><circle cx="204" cy="212" r="122" class="m2"/><circle cx="204" cy="212" r="104" class="glass"/><path d="M140 160 a80 80 0 0 1 60 -40" style="fill:none;stroke:var(--panel);stroke-width:6;opacity:.4"/><text class="lbl" x="36" y="356">case on · take it off to see the brain</text>`,
+ parts:{
+  keypad:{name:'Program knob + START',role:'A rotary encoder and buttons.',decides:'Nothing. Picks a row in the program table.',code:'program = TABLE[knob]  # temp, rpm, times',broken:'Knob or START ignored.'},
+  mcu:{name:'Control board',role:'Runs the program table step by step and drives the motor through a triac or inverter.',decides:'Every step and every timeout: fill, heat, wash, drain, spin, unbalance retries.',code:'for step in program:\n    run(step) or error(step.timeout_code)',broken:'Display dead or stuck. Nothing runs.'},
+  lock:{name:'Door lock (PTC)',role:'A ceramic PTC heats a wax or bimetal latch that pushes a pin into the door. Slow on purpose: it takes a minute or two to cool and release.',decides:'Reports locked or not on a third wire.',code:'lock.heat()\nwait until lock.confirmed  # ~3 s\nif not confirmed: error("door")',broken:'Never confirms lock. The board won\'t open the water valve with an unlocked door.'},
+  motor:{name:'Motor + tacho',role:'A universal motor on a belt (or a direct-drive BLDC). A tachometer coil reports speed.',decides:'Nothing. The board sets speed and listens to the tacho.',code:'load = coast_down_time(spin_to(100 rpm))\nif tacho == 0 while powered: error("motor")',broken:'No tacho pulses. The board thinks the drum is jammed and stops.'},
+  valve:{name:'Inlet valve',role:'A solenoid valve on the cold water hose.',decides:'Nothing. Opens while powered.',code:'valve.open() until level.full or timeout',broken:'No water. "Inlet" error after the timeout.'},
+  level:{name:'Level sensor',role:'An air trap at the bottom of the tub: rising water squeezes the air in the tube. The sensor reads that pressure.',decides:'Nothing. It reports level.',code:'level_l = pressure_to_litres(sensor.read())\nif fill_time > limit: error("fill")  # anti-flood',broken:'Never reports full. The board stops filling on a timer to avoid a flood: error.'},
+  ntc:{name:'NTC thermistor',role:'Reads water temperature next to the heater.',decides:'Nothing. Thermometer.',code:'heater.on() while ntc.temp < program.temp',broken:'Reads open circuit. No heating: it washes cold or stops with an error.'},
+  heater:{name:'Heater',role:'A ≈ 2 kW element under the drum. Only allowed when the level sensor says it is under water.',decides:'Nothing. On or off.',code:'if level >= min_level: heater.on()',broken:'Water never warms. The board times out: washed cold or "heater" error.'},
+  pump:{name:'Drain pump',role:'A small magnet-driven impeller pump, ≈ 30 W.',decides:'Nothing.',code:'pump.on() until level == 0 or timeout',broken:'Blocked (usually a coin or a sock in the filter). Water stays in, door stays locked: drain error.'}
+ },
+ seq:[
+  ['keypad',c=>`Program: ${c.mode?'Quick 20°C':'Cotton 40°C'}`],
+  ['mcu','Board loads the program: lock, weigh, fill, heat, wash, drain, spin'],
+  ['lock','PTC heats the latch. Door confirmed locked',async c=>{await c.anim(600,k=>c.el('wsPin').setAttribute('x',330+10*k))}],
+  ['motor','Load sensing: spin up, measure how fast the drum coasts down',async c=>{await c.app.turn(c,1100,360);c.el('wsLoad').textContent='load: ≈ 4.5 kg → 12 L';c.log('Coast-down says ≈ 4.5 kg. Water target 12 L','note')}],
+  ['valve','Inlet valve opens',async c=>{c.el('wsF1').classList.add('on');await c.anim(1500,k=>{c.app.water(c,k*.8);c.set('lit',Math.round(12*k)+' L')});c.el('wsF1').classList.remove('on')}],
+  ['level','Air trap pressure = 12 L. Valve closes'],
+  ['ntc','NTC reads 15°C'],
+  ['heater',c=>c.mode?'Quick 20°C: heater on for a few degrees':'Heater on: ≈ 2 kW',c=>{c.el('wsHeat').classList.add('on');return sleep(250)}]
+ ],
+ fail:{
+  lock:'Lock never confirms. No water, no motor. "Door" error.',
+  motor:'Board sends power, gets zero tacho pulses. Assumes a jammed drum. "Motor" error.',
+  valve:async c=>{await sleep(1200);return 'Valve coil dead. Level never rises. "Inlet" error after the timeout.'},
+  level:async c=>{c.el('wsF1').classList.add('on');await c.anim(1500,k=>c.app.water(c,.8+k*.15));c.el('wsF1').classList.remove('on');return 'Sensor never says full. The fill timer stops the valve before a flood. "Fill" error.'},
+  ntc:'NTC reads open. The board can\'t control the heat: it skips heating and washes cold, or stops with an error.',
+  heater:async c=>{await c.anim(1800,k=>{c.set('temp','15°C');c.chart(15)});return 'Heater on, temperature flat at 15°C. Heating timeout: "heater" error, or a cold wash.'}
+ },
+ ang:0,
+ water(c,f){const h=f*120;c.el('wsWater').setAttribute('y',332-h);c.el('wsWater').setAttribute('height',h)},
+ turn(c,ms,deg){const a0=this.ang;return c.anim(ms,k=>{this.ang=a0+deg*ease(k);c.el('wsDrum').setAttribute('transform',`rotate(${this.ang} 204 212)`)})},
+ rpm(c,r){c.el('wsNeedle').setAttribute('transform',`rotate(${-130+r/1400*260} 540 216)`);c.el('wsRpm').textContent=Math.round(r);c.set('rpm',Math.round(r)+' rpm')},
+ async run(c){
+  const target=c.mode?20:40;let t=15;
+  c.log('Wash: tumble one way, pause, the other way, while heating');
+  const heat=c.anim(4200,(k,dt)=>{t=Math.min(target,t+dt*(target-15)/3600);c.set('temp',t.toFixed(1)+'°C');c.chart(t)});
+  for(let i=0;i<4;i++){await this.turn(c,900,i%2?-180:180);this.rpm(c,0);await sleep(150)}
+  await heat;c.el('wsHeat').classList.remove('on');c.log(`${target}°C reached. Heater off`);
+  c.log('Drain pump on');
+  if(c.broken('pump')){await c.anim(1500,()=>{});return {msg:'Pump blocked. Level stays at 12 L, door stays locked. "Drain" error.',cls:'fail'}}
+  c.spin('wsImp',true);await c.anim(1400,k=>{this.water(c,.8*(1-k));c.set('lit',Math.round(12*(1-k))+' L')});c.spin('wsImp',false);
+  c.chartReset('Drum speed','rpm',0,1500);
+  let r=0;const ramp=async(to,ms)=>{const r0=r;await c.anim(ms,(k)=>{r=lerp(r0,to,ease(k));this.rpm(c,r);this.ang+=r*.012;c.el('wsDrum').setAttribute('transform',`rotate(${this.ang} 204 212)`);c.chart(r)})};
+  await ramp(90,800);c.log('Distribution at 90 rpm: clothes stick to the wall');
+  c.log('Tacho ripple too high: load is lopsided. Drop, tumble, retry','note');
+  await ramp(30,600);await ramp(90,700);c.log('Ripple OK. Ramping up');
+  await ramp(1400,1800);await ramp(1400,900);await ramp(0,1400);
+  return {msg:'Spin done at 1,400 rpm. The PTC lock cools and releases the door in 1–2 minutes.'};
+ },
+ reset(){this.ang=0}
+});
+
+/* ===== FRIDGE ===== */
+APPS.push({
+ id:'fridge',name:'Fridge',
+ blurb:'A fridge doesn\'t make cold. It pumps heat out of the box and dumps it into your kitchen. The board only switches a compressor on at 5°C and off at 3°C, and melts the frost now and then.',
+ spec:[['Fridge','3–5°C'],['Freezer','-18°C'],['Evaporator','≈ -25°C'],['Defrost','every 8–12 h of run time']],
+ readouts:[['fr','Fridge','7.0°C'],['fz','Freezer','-15°C'],['comp','Compressor','off']],
+ chart:['Fridge temperature','°C',0,14],
+ base:`
+ <rect x="38" y="38" width="266" height="324" rx="10" class="m2"/>
+ <rect x="46" y="46" width="250" height="98" rx="4" style="fill:var(--panel);stroke:var(--line)"/>
+ <rect x="46" y="162" width="250" height="192" rx="4" style="fill:var(--panel);stroke:var(--line)"/>
+ <rect x="38" y="146" width="266" height="14" class="m"/>
+ <text class="lbl" x="54" y="62">freezer</text><text class="lbl" x="54" y="352">fridge</text>
+ <path d="M50 240 H292 M50 290 H292" style="stroke:var(--line)"/>
+ <rect x="70" y="252" width="40" height="36" rx="4" style="fill:#5DA35A" opacity=".7"/><rect x="120" y="262" width="22" height="26" rx="3" style="fill:#E8C547" opacity=".8"/><rect x="200" y="300" width="50" height="40" rx="4" style="fill:#D9534F" opacity=".6"/>
+ <circle id="frLamp" cx="272" cy="176" r="6" style="fill:var(--line)"/>
+ <path id="frSuc" class="refC" d="M184 120 V126 H316 V320 H332"/>
+ <path id="frCap" class="refC" d="M400 250 H414 V28 H286 V58 H272" style="stroke-width:1.6"/>
+ <path id="frDis" class="refH" d="M360 290 V262 H340 V250"/>
+ ${P('evap',[176,50,104,80],`<path id="frEvap" class="coilC" d="${zig(272,58,-88,7,10)}"/><rect id="frIce" x="180" y="54" width="96" height="72" rx="4" style="fill:#DCEFFF;stroke:#fff" opacity=".15"/>`,`<text class="lbl" transform="rotate(-90 292 128)" x="292" y="128">evaporator</text>`)}
+ ${P('defrost',[176,130,104,15],`<path id="frDef" class="coilH" d="M182 138 h92"/>`)}
+ ${P('efan',[116,60,50,50],`<circle cx="141" cy="85" r="20" class="m"/>${fan(141,85,18,'frFan')}`,['fan',130,122])}
+ ${P('damper',[196,144,56,18],`<rect x="200" y="148" width="48" height="10" rx="2" class="sigf"/><rect id="frFlap" x="206" y="150" width="36" height="6" class="inkf"/>`)}
+ <path id="frAir" class="air" d="M224 160 V196 M206 186 l18 12 l18 -12 M70 200 C120 230 220 220 280 200 M70 320 C140 300 220 330 280 310"/>
+ ${P('ntc',[60,186,36,28],`<rect x="66" y="190" width="24" height="18" rx="3" class="chip"/><text class="lblW" x="78" y="203" text-anchor="middle">T°</text>`,['sensor',62,226])}
+ ${P('door',[286,184,22,30],`<rect x="292" y="188" width="10" height="22" rx="2" class="warnf"/>`,['door sw',250,228])}
+ ${P('cond',[328,48,82,216],`<path id="frCond" class="coilW" d="M340 250 v-190 h12 v190 h12 v-190 h12 v190 h12 v-190 h12 v190"/>`,['condenser',332,276])}
+ ${P('comp',[324,286,94,70],`<ellipse cx="368" cy="300" rx="36" ry="10" class="m"/><rect x="332" y="300" width="72" height="44" class="m"/><ellipse cx="368" cy="344" rx="36" ry="8" class="m2"/>`,['compressor',330,370])}
+ ${P('relay',[422,300,36,32],`<rect x="426" y="304" width="28" height="24" rx="3" class="sigf"/>`,['start relay',418,346])}
+ ${P('mcu',[470,48,94,64],`<rect x="476" y="54" width="82" height="52" rx="3" class="pcb"/><rect x="504" y="64" width="26" height="26" rx="2" class="chip"/>`,['board',476,124])}
+ <rect x="474" y="146" width="140" height="66" rx="6" style="fill:var(--panel);stroke:var(--line)"/>
+ <line x1="484" y1="164" x2="514" y2="164" style="stroke:var(--hot);stroke-width:3"/><text class="lbl" x="520" y="168">hot · high pressure</text>
+ <line x1="484" y1="184" x2="514" y2="184" style="stroke:var(--cold);stroke-width:3"/><text class="lbl" x="520" y="188">cold · low pressure</text>
+ <text class="lbl" x="484" y="204">heat leaves at the back</text>
+ <rect x="500" y="228" width="22" height="120" rx="11" style="fill:var(--panel);stroke:var(--line)"/><rect id="frBarF" x="503" y="290" width="16" height="55" rx="8" style="fill:var(--cold)"/><text class="lbl" x="494" y="364">fridge</text>
+ <rect x="560" y="228" width="22" height="120" rx="11" style="fill:var(--panel);stroke:var(--line)"/><rect id="frBarZ" x="563" y="240" width="16" height="105" rx="8" style="fill:var(--signal)"/><text class="lbl" x="548" y="364">freezer</text>
+ `,
+ cover:`<rect x="30" y="30" width="282" height="340" rx="12" class="m" stroke-width="2"/><line x1="30" y1="153" x2="312" y2="153" style="stroke:var(--line);stroke-width:2"/><rect x="290" y="60" width="8" height="70" rx="4" class="m2"/><rect x="290" y="176" width="8" height="120" rx="4" class="m2"/><text class="lbl" x="42" y="356">doors on · open to see the brain</text>`,
+ parts:{
+  mcu:{name:'Control board',role:'Reads the sensors, switches the compressor and fans, and times the defrost.',decides:'On at the cut-in temperature, off at the cut-out. Defrost after enough compressor run time.',code:'if fridge >= 5.0: compressor.on()\nif fridge <= 3.0: compressor.off()  # hysteresis\nif run_hours >= 8: defrost()',broken:'Nothing switches. Everything warms to room temperature.'},
+  ntc:{name:'Temperature sensor',role:'An NTC thermistor in the fridge air.',decides:'Nothing. The board\'s only idea of how cold it is.',code:'temp = ntc.read()\nif open/short: fallback_timer() or error',broken:'Board loses the temperature. It runs a fixed on/off timer or shows an error.'},
+  relay:{name:'Start relay + overload',role:'Gives the compressor motor an extra kick to start, and cuts it if it overheats.',decides:'Nothing. Physics and a bimetal.',code:'start_winding.on() for ~0.5 s\nif motor too hot: overload.open()',broken:'Click every few minutes, compressor never starts. Everything warms.'},
+  comp:{name:'Compressor',role:'A sealed pump. Squeezes cold refrigerant vapor into hot, high-pressure gas.',decides:'Nothing. On or off (inverter models vary speed).',code:'vapor in (cold, low p) -> gas out (hot, high p)',broken:'Silent. Both compartments warm to room temperature.'},
+  cond:{name:'Condenser',role:'The coil at the back or underneath. Hot gas gives its heat to the room and turns to liquid.',decides:'Nothing.',code:'hot gas -> heat to kitchen -> warm liquid',broken:'Clogged with dust. Heat can\'t leave: compressor runs nonstop and hot, fridge never reaches 3°C.'},
+  evap:{name:'Evaporator',role:'After the capillary tube drops the pressure, the refrigerant boils here at about -25°C and soaks up heat from the air.',decides:'Nothing.',code:'liquid (low p) boils -> absorbs heat -> cold coil',broken:'Refrigerant leak. The coil never gets cold, the compressor runs forever.'},
+  efan:{name:'Evaporator fan',role:'Pulls air across the cold coil and pushes it into both compartments.',decides:'Nothing. Stops when the door opens.',code:'fan.on() while compressor.on and door.closed',broken:'Coil ices over, freezer stays cold, fridge gets no air and warms.'},
+  damper:{name:'Air damper',role:'A flap in the duct between freezer and fridge.',decides:'Opens more when the fridge is too warm.',code:'damper.open = fridge > target',broken:'Stuck shut. Freezer perfect at -18°C, fridge creeps up to 10°C.'},
+  defrost:{name:'Defrost heater',role:'A heating element under the evaporator. A bimetal stops it when the coil reaches about 10°C.',decides:'Nothing. The board times it.',code:'every 8-12 h of compressor time:\n    compressor.off(); heater.on() until bimetal opens',broken:'Ice builds on the coil until no air passes. Freezer still cold, fridge warms. The classic failure.'},
+  door:{name:'Door switch',role:'A push switch on the frame.',decides:'Nothing. Reports open or closed.',code:'door.open -> lamp.on(); fan.off()',broken:'Lamp stays off, fan keeps blowing cold air out of the open door.'}
+ },
+ seq:[
+  ['mcu','Board reads 7°C. Target 4°C'],
+  ['ntc','Above the 5°C cut-in. Call for cooling'],
+  ['relay','Start relay kicks the compressor motor'],
+  ['comp','Compressor squeezes vapor into hot, high-pressure gas',c=>{c.el('frDis').classList.add('on');c.set('comp','on');return sleep(250)}],
+  ['cond','Condenser dumps that heat into your kitchen',c=>{c.el('frCond').classList.add('on');return sleep(250)}],
+  ['evap','Capillary drops the pressure. Refrigerant boils at ≈ -25°C in the evaporator',c=>{c.el('frCap').classList.add('on');c.el('frEvap').classList.add('on');c.el('frSuc').classList.add('on');return sleep(250)}],
+  ['efan','Fan pulls air across the cold coil',c=>{c.spin('frFan',true);return sleep(200)}],
+  ['damper','Damper opens: part of the cold air goes down to the fridge',c=>{c.el('frFlap').setAttribute('width',10);return sleep(200)}]
+ ],
+ fail:{
+  relay:'Click... click. The overload keeps tripping, the compressor never starts. Everything warms.',
+  comp:'Compressor dead. No hum. Both compartments drift up to room temperature.',
+  cond:async c=>{await c.app.cool(c,{fr:[7,6],fz:[-15,-14]});return 'Condenser clogged with dust. Heat can\'t leave. Compressor runs nonstop and hot, fridge stuck at 6°C.'},
+  evap:async c=>{c.el('frEvap').classList.remove('on');await c.app.cool(c,{fr:[7,9],fz:[-15,-8]});return 'Refrigerant leak. The coil never gets cold. Compressor runs forever, everything warms.'},
+  efan:async c=>{c.el('frIce').setAttribute('opacity',.7);await c.app.cool(c,{fr:[7,11],fz:[-15,-18],air:false});return 'Fan dead. Freezer still cold, coil iced, fridge at 11°C with no airflow.'},
+  damper:async c=>{await c.app.cool(c,{fr:[7,10],fz:[-15,-18],air:'top'});return 'Damper stuck shut. Freezer perfect at -18°C, fridge creeps to 10°C.'}
+ },
+ bars(c,fr,fz){c.set('fr',fr.toFixed(1)+'°C');c.set('fz',Math.round(fz)+'°C');const hf=clamp(110*(fr+2)/16,4,114),hz=clamp(110*(fz+26)/16,4,114);c.el('frBarF').setAttribute('height',hf);c.el('frBarF').setAttribute('y',345-hf);c.el('frBarZ').setAttribute('height',hz);c.el('frBarZ').setAttribute('y',345-hz)},
+ async cool(c,o){const air=o.air===undefined?true:o.air;if(air)c.el('frAir').classList.add('on');if(air==='top')c.el('frFlap').setAttribute('width',36);
+  await c.anim(4200,k=>{const fr=lerp(o.fr[0],o.fr[1],k),fz=lerp(o.fz[0],o.fz[1],k);this.bars(c,fr,fz);c.chart(fr)});c.el('frAir').classList.remove('on')},
+ async run(c){
+  if(c.broken('door')){c.log('Door opens: the switch should light the lamp and stop the fan','note')}
+  await this.cool(c,{fr:[7,c.broken('door')?6:3],fz:[-15,-18]});
+  if(c.broken('door')){return {msg:'Door switch dead. Lamp stayed dark and the fan blew cold air out of the open door. Fridge stuck at 6°C.',cls:'fail'}}
+  ['frDis','frCap','frSuc','frCond','frEvap'].forEach(i=>c.el(i).classList.remove('on'));c.spin('frFan',false);c.set('comp','off');
+  c.log('Cut-out at 3°C: compressor off. The 2°C gap stops it short-cycling');
+  c.log('Fast-forward 10 h: frost has built up on the coil','note');
+  c.el('frIce').setAttribute('opacity',.55);await sleep(500);
+  if(c.broken('defrost')){c.el('frIce').setAttribute('opacity',.9);c.el('frEvap').classList.add('on');c.spin('frFan',true);await this.cool(c,{fr:[3,12],fz:[-18,-16],air:false});c.spin('frFan',false);return {msg:'Defrost heater dead. Ice blocked the coil. Freezer still -16°C, fridge at 12°C. The most common fridge failure.',cls:'fail'}}
+  c.el('frDef').classList.add('on');c.log('Defrost: compressor off, heater melts the frost, water drains out');
+  await c.anim(1600,k=>c.el('frIce').setAttribute('opacity',.55*(1-k)));
+  c.el('frDef').classList.remove('on');c.log('Coil reaches ≈ 10°C. Bimetal opens, heater off');
+  return {msg:'Holding 3–5°C and -18°C. Most of the day the compressor is off.'};
+ }
+});
+
+/* ===== THERMOSTAT ===== */
+APPS.push({
+ id:'thermostat',name:'Thermostat',
+ blurb:'A smart thermostat is a switch with opinions. It closes one 24 V circuit between two wires, R and W, and the furnace does the rest. The smart part is deciding when.',
+ spec:[['Control voltage','24 V AC'],['Wires','R W G Y C'],['Deadband','≈ ±0.5°C'],['Flame proof','≈ 4–7 s']],
+ readouts:[['room','Room','19.2°C'],['set','Target','21.0°C'],['call','Heat call','off']],
+ chart:['Room temperature','°C',16,28],
+ base:`
+ <rect x="296" y="44" width="330" height="208" style="fill:var(--panel);stroke:var(--ink);stroke-width:2"/>
+ <line x1="296" y1="254" x2="626" y2="254" style="stroke:var(--ink);stroke-width:3"/><text class="lbl" x="300" y="268">basement</text>
+ <rect x="320" y="70" width="80" height="64" style="fill:#BFE3FF;stroke:var(--ink)"/><line x1="360" y1="70" x2="360" y2="134" style="stroke:var(--ink)"/>
+ <circle cx="342" cy="88" r="10" style="fill:#FFC93C"/>
+ <polygon id="thBeam" points="320,84 320,130 128,118 128,96" style="fill:#FFC93C" opacity="0"/>
+ <text id="thRoomT" class="big" x="610" y="96" text-anchor="end">19.2°</text><text class="lbl" x="610" y="112" text-anchor="end">living room</text>
+ <rect x="540" y="236" width="60" height="16" class="m2"/>
+ <path id="thAir" class="air warm" d="M550 232 C540 200 500 180 470 150 M570 232 C570 190 590 170 600 140 M590 232 C600 210 560 190 520 200"/>
+ <path d="M579 272 V252" style="stroke:var(--metal2);stroke-width:14"/>
+ ${[['#D9433B','R'],['#E8E8E8','W'],['#3BA55C','G'],['#E6B800','Y'],['#3B7BD9','C']].map(([col,n],i)=>`<path id="thW${n}" d="M${104+i*20} 316 V${330+i*7} H${420} V${300+i*10} H436" style="fill:none;stroke:${col};stroke-width:3"/><circle cx="${104+i*20}" cy="312" r="5" style="fill:${col};stroke:var(--ink)"/><text class="lbl" x="${100+i*20}" y="304">${n}</text>`).join('')}
+ <circle cx="150" cy="182" r="128" class="m2"/>
+ ${P('sensor',[74,88,56,36],`<rect x="80" y="94" width="44" height="24" rx="3" class="chip"/>${[86,94,102,110,118].map(x=>`<line x1="${x}" y1="98" x2="${x}" y2="114" style="stroke:var(--line)"/>`).join('')}`,['temp + humidity',70,136])}
+ ${P('pir',[172,78,64,44],`<path d="M182 116 a22 22 0 0 1 44 0z" class="glass"/><path d="M190 108 h28 M194 100 h20" style="stroke:var(--line)"/>`,['motion (pir)',172,134])}
+ ${P('mcu',[100,146,104,60],`<rect x="106" y="152" width="92" height="48" rx="3" class="pcb"/><rect x="138" y="160" width="28" height="28" rx="2" class="chip"/><path d="M176 158 h14 v6 h-10 v6 h10 v6 h-10" class="cu"/>`,['soc + wi-fi',106,218])}
+ ${P('cwire',[54,228,66,52],`<rect x="60" y="236" width="24" height="36" rx="4" class="warnf"/><rect x="90" y="242" width="24" height="24" rx="2" class="chip"/>`,['power',60,292])}
+ ${P('relay',[128,228,120,52],`${['W','Y','G'].map((n,i)=>`<rect x="${134+i*38}" y="236" width="30" height="36" rx="3" class="sigf"/><text class="lblW" x="${149+i*38}" y="258" text-anchor="middle">${n}</text>`).join('')}<rect id="thRlyW" x="138" y="264" width="22" height="4" class="inkf"/>`,['relays',134,292])}
+ ${P('furnace',[430,262,104,108],`<rect x="436" y="268" width="92" height="96" rx="4" class="m"/><rect x="446" y="330" width="72" height="22" rx="3" class="chip"/><g id="thFlame" opacity="0">${[456,474,492,510].map(x=>`<path d="M${x} 350 q-6 -12 0 -22 q6 10 0 22z" class="hotf"/>`).join('')}</g><circle id="thIgn" cx="462" cy="322" r="4" style="fill:var(--line)"/>`,['furnace',436,382])}
+ ${P('blower',[544,272,72,72],`<circle cx="580" cy="306" r="30" class="m"/>${fan(580,306,26,'thBl')}`,['blower',552,356])}
+ `,
+ cover:`<circle cx="150" cy="182" r="130" class="m" style="stroke:var(--ink);stroke-width:2"/><circle cx="150" cy="182" r="94" class="glass"/><text x="150" y="196" text-anchor="middle" style="font:900 52px var(--f-display);fill:#FFB65C">21°</text><text class="lbl" x="150" y="226" text-anchor="middle" style="fill:#9fb0bd">heat to</text>`,
+ parts:{
+  pir:{name:'Motion sensor (PIR)',role:'A pyroelectric sensor that sees body heat moving across its lens.',decides:'Nothing. Reports motion; the board guesses whether you are home.',code:'if no motion for 2 h: setpoint = ECO (17°C)\nelse: setpoint = COMFORT (21°C)',broken:'Never sees you. It decides nobody is home and holds 17°C.'},
+  sensor:{name:'Temperature + humidity',role:'A tiny digital sensor behind vents. It only knows the air right in front of the wall.',decides:'Nothing. Thermometer.',code:'room = sensor.read() - self_heating_offset',broken:'Sun on the sensor. It reads 25°C and thinks the house is warm.'},
+  mcu:{name:'SoC + Wi-Fi',role:'Runs the schedule, learns your habits, talks to the app.',decides:'When to call for heat: below target minus the deadband. And never short-cycle.',code:'if room < setpoint - 0.5: call_heat()\nif room > setpoint + 0.5: stop_heat()\nmin_off_time(5 min)',broken:'Blank screen. No heat call ever.'},
+  cwire:{name:'Power (C wire)',role:'R and C give it 24 V AC. Without a C wire it trickle-charges by "stealing" current through the furnace circuit.',decides:'Nothing.',code:'if no C: harvest power via W while idle\nbattery low -> reboot',broken:'No C wire, weak battery. It reboots and clicks the furnace on and off.'},
+  relay:{soft:true,name:'Relays W / Y / G',role:'W = heat, Y = cooling, G = fan. Closing a relay connects R (24 V) to that wire.',decides:'Nothing. The board drives them.',code:'call_heat(): relay_W.close()  # R -> W',broken:'W contacts welded shut. Heat never stops.'},
+  furnace:{name:'Furnace control',role:'Its own little board: inducer fan, pressure switch, hot surface igniter, gas valve, flame sensor.',decides:'The burn sequence and every safety check.',code:'inducer.on(); wait pressure_ok\nigniter.glow(); gas.open()\nif not flame_sensed within ~5 s: gas.close(); retry x3 -> lockout',broken:'Dirty flame sensor: lights, can\'t prove the flame, shuts the gas. Three tries, then lockout.'},
+  blower:{name:'Blower',role:'Pushes air across the hot heat exchanger and up the ducts. Starts after a warm-up delay, keeps running after the flame stops.',decides:'Nothing. The furnace board times it.',code:'flame.on -> wait 30 s -> blower.on\nflame.off -> blower runs 60-120 s more',broken:'Heat stays in the furnace. The high-limit switch trips and kills the burner.'}
+ },
+ seq:[
+  ['pir','Motion seen: someone is home, comfort target 21°C'],
+  ['sensor','Room 19.2°C, humidity 41%'],
+  ['mcu','19.2 < 21.0 - 0.5. Call for heat'],
+  ['cwire','R and C supply 24 V AC to drive the relay'],
+  ['relay','W relay closes: R connects to W',c=>{c.el('thRlyW').setAttribute('x',140);c.el('thWW').style.filter='drop-shadow(0 0 4px var(--hot))';c.set('call','ON');return sleep(250)}],
+  ['furnace','Furnace sees 24 V on W: inducer, igniter, gas',async c=>{c.el('thIgn').style.fill='var(--hot)';c.log('Hot surface igniter glows (over 1,000°C)','note');await sleep(700);c.el('thFlame').setAttribute('opacity',1);c.log('Gas valve opens. Flame sensor proves the flame')}]
+ ],
+ fail:{
+  pir:c=>{c.set('set','17.0°C');return 'PIR blind: "nobody home". Target dropped to 17°C. Room 19.2°C, no heat called.'},
+  sensor:async c=>{c.el('thBeam').setAttribute('opacity',.35);await c.anim(1200,k=>{c.set('room',(19.2+5.8*k).toFixed(1)+'°C (sensor)')});return 'Sunbeam on the sensor: it reads 25°C. Real room 19.2°C. No heat.'},
+  mcu:'Board dead. Blank screen. The furnace waits for a call that never comes.',
+  cwire:async c=>{for(let i=0;i<3;i++){c.el('thRlyW').setAttribute('x',140);c.el('thIgn').style.fill='var(--hot)';await sleep(400);c.el('thRlyW').setAttribute('x',138);c.el('thIgn').style.fill='var(--line)';c.log('Battery low. Reboot. Heat call dropped','fail');await sleep(400)}return 'No C wire. Power stealing drained the battery: it reboots and clicks the furnace on and off.'},
+  furnace:async c=>{c.el('thIgn').style.fill='var(--hot)';for(let i=1;i<=3;i++){c.el('thFlame').setAttribute('opacity',1);await sleep(450);c.el('thFlame').setAttribute('opacity',0);c.log(`Try ${i}: flame lit, not proven in time. Gas closed`,'fail');await sleep(350)}c.el('thIgn').style.fill='var(--line)';return 'Dirty flame sensor. Three failed tries, then lockout. Cleaning the sensor rod usually fixes it.'}
+ },
+ async run(c){
+  c.log('Blower waits ≈ 30 s for the heat exchanger to warm');await sleep(500);
+  if(c.broken('blower')){await sleep(900);c.el('thFlame').setAttribute('opacity',0);return {msg:'Blower dead. Heat builds in the furnace, the high-limit switch trips, burner off. Room stays at 19.2°C.',cls:'fail'}}
+  c.spin('thBl',true);c.el('thAir').classList.add('on');
+  const stuck=c.broken('relay');let t=19.2,stopped=false;
+  await c.anim(stuck?5200:4400,(k,dt)=>{t+=dt*(stuck?7:2.5)/4400;
+   if(!stuck&&t>=21.5&&!stopped){stopped=true;c.el('thFlame').setAttribute('opacity',0);c.el('thRlyW').setAttribute('x',138);c.el('thWW').style.filter='';c.set('call','off');c.log('21.5°C: above target + deadband. W relay opens, gas off')}
+   if(stuck&&t>24&&Math.floor(t*4)%2)c.el('thFlame').setAttribute('opacity',0);else if(stuck)c.el('thFlame').setAttribute('opacity',1);
+   const show=stopped?Math.min(t,21.7):t;c.set('room',show.toFixed(1)+'°C');c.el('thRoomT').textContent=show.toFixed(1)+'°';c.chart(show)});
+  if(stuck){c.spin('thBl',false);return {msg:'W relay welded shut. Room at 26°C and climbing. Only the furnace high-limit switch keeps cycling the burner.',cls:'fail'}}
+  c.log('Fan-off delay: blower keeps running ≈ 90 s to pull out the last heat');await sleep(900);
+  c.spin('thBl',false);c.el('thAir').classList.remove('on');
+  return {msg:'21.7°C with a small overshoot. Next call when the room drops below 20.5°C.'};
+ }
+});
+
+/* ===== SMART BULB ===== */
+const MODES_BULB=[{n:'Warm 2700K',col:'#FFB765',d:[0,0,0,.1,.85]},{n:'Sunset',col:'#FF7A3A',d:[1,.35,.05,0,.2]},{n:'Ocean',col:'#3E8CFF',d:[0,.45,1,.2,0]}];
+const sq=(x,y,w,h,duty,per=26)=>{let d=`M${x} ${y+h}`;for(let px=x;px<x+w+per;px+=per){const hi=per*duty;d+=duty<=0?` H${px+per}`:duty>=1?` V${y} H${px+per}`:` V${y} H${px+hi} V${y+h} H${px+per}`}return d};
+APPS.push({
+ id:'bulb',name:'Smart bulb',
+ blurb:'Inside a 9 W smart bulb: a Wi-Fi chip, a power supply that turns 230 V into a few dozen volts, and five LED channels flicking on and off thousands of times a second. The color you see is just the on-time of each channel.',
+ spec:[['Mains','230 V AC → ≈ 325 V DC'],['Channels','R, G, B, cool + warm white'],['Dimming','PWM at kHz'],['Power','≈ 9 W']],
+ modes:MODES_BULB.map(m=>m.n),
+ readouts:[['w','Power','0.0 W'],['t','LED temp','25°C'],['pwm','Busiest channel','0%']],
+ chart:['LED board temperature','°C',20,100],
+ base:`
+ <radialGradient id="buGrad"><stop id="buStop" offset="0" style="stop-color:#FFB765;stop-opacity:.9"/><stop offset="1" style="stop-color:#FFB765;stop-opacity:0"/></radialGradient>
+ <circle id="buHalo" cx="200" cy="112" r="150" fill="url(#buGrad)" opacity="0"/>
+ <path id="buDome" d="M112 146 a88 88 0 1 1 176 0 z" style="fill:var(--panel);stroke:var(--line);stroke-width:2"/>
+ <path d="M118 166 H282 L262 284 H138 Z" class="m2"/>
+ ${P('leds',[112,142,176,22],`<rect x="116" y="146" width="168" height="14" rx="3" style="fill:#E9EEF2;stroke:var(--line)"/>${['#E5484D','#46A758','#3E63DD','#DDE8FF','#FFC27A'].map((col,i)=>`<rect class="buChip" x="${132+i*30}" y="148" width="14" height="10" rx="2" style="fill:${col}"/>`).join('')}`,['led board',30,154])}
+ ${P('sink',[[100,166,26,110],[274,166,26,110]],`${[176,192,208,224,240,256].map(y=>`<line x1="102" y1="${y}" x2="124" y2="${y}" class="fin"/><line x1="276" y1="${y}" x2="298" y2="${y}" class="fin"/>`).join('')}<circle cx="287" cy="170" r="4" class="inkf"/>`,['heatsink + ntc',30,176])}
+ ${P('soc',[150,170,100,28],`<rect x="152" y="172" width="96" height="24" rx="3" class="pcb"/><rect x="166" y="176" width="16" height="16" rx="2" class="chip"/><path d="M196 178 h40 v6 h-36 v6 h36" class="cu"/>`,['wi-fi chip',30,192])}
+ ${P('driver',[150,202,100,28],`<rect x="152" y="204" width="96" height="24" rx="3" class="pcb"/><rect x="162" y="208" width="20" height="16" rx="2" class="chip"/><circle cx="222" cy="216" r="9" style="fill:none;stroke:var(--copper);stroke-width:3"/>`,['led driver',30,222])}
+ ${P('cap',[150,234,48,44],`<rect x="158" y="238" width="30" height="36" rx="6" style="fill:#2B4C8C;stroke:var(--line)"/><rect id="buCapTop" x="158" y="238" width="30" height="5" rx="2" style="fill:#9DB4E0"/>`,['capacitor',30,254])}
+ ${P('rect',[202,234,48,44],`<polygon points="226,240 244,256 226,272 208,256" style="fill:none;stroke:var(--ink);stroke-width:2"/>${[[217,248],[235,248],[217,264],[235,264]].map(([x,y])=>`<circle cx="${x}" cy="${y}" r="3" class="inkf"/>`).join('')}`,['rectifier + fuse',30,274])}
+ ${P('base',[146,286,108,64],`<rect x="152" y="288" width="96" height="46" rx="4" class="m"/>${[296,306,316,326].map(y=>`<path d="M152 ${y} L248 ${y+4}" style="stroke:var(--line);stroke-width:2"/>`).join('')}<rect x="186" y="334" width="28" height="12" rx="3" class="inkf"/>`,['E27 base · 230 V',30,320])}
+ <path id="buRadio" class="radio" d="M520 118 Q390 140 252 182"/>
+ ${P('app',[418,46,68,116],`<rect x="424" y="50" width="56" height="106" rx="9" class="chip"/><circle id="buSwatch" cx="452" cy="88" r="20" style="fill:#FFB765"/><text id="buMode" class="lblW" x="452" y="132" text-anchor="middle">WARM</text>`,['phone app',420,174])}
+ ${P('router',[518,92,92,52],`<rect x="524" y="110" width="80" height="26" rx="5" class="m"/><line x1="534" y1="110" x2="530" y2="94" class="inkS"/><line x1="594" y1="110" x2="598" y2="94" class="inkS"/><circle cx="540" cy="123" r="3" style="fill:var(--ok)"/>`,['router',524,156])}
+ <rect x="312" y="196" width="310" height="180" rx="8" class="chip"/>
+ <clipPath id="buScopeClip"><rect x="352" y="200" width="264" height="172"/></clipPath>
+ ${['R','G','B','CW','WW'].map((n,i)=>`<text class="lblW" x="322" y="${226+i*32}">${n}</text><line x1="352" y1="${232+i*32}" x2="616" y2="${232+i*32}" style="stroke:#253340"/>`).join('')}
+ <g clip-path="url(#buScopeClip)"><g id="buScope"></g></g>
+ <text class="lbl" x="520" y="370" style="fill:#7d8f9c">pwm · kHz · same period</text>
+ `,
+ cover:`<path d="M114 164 H286 L266 286 H134 Z" style="fill:#F4F1EC;stroke:var(--line);stroke-width:2"/><text class="lbl" x="150" y="232" style="fill:#7a7a7a">shell on</text>`,
+ parts:{
+  app:{name:'Phone app + cloud',role:'You tap a color. The app sends it to the vendor cloud, which sends it to the bulb (or directly over the local network).',decides:'Nothing. A message: {"r":255,"g":89,"b":13}.',code:'cloud.send(bulb_id, {"color": SUNSET})',broken:'Cloud down: "device unreachable". The wall switch still works.'},
+  router:{name:'Wi-Fi router',role:'Delivers the packet over 2.4 GHz Wi-Fi.',decides:'Nothing.',code:'2.4 GHz Wi-Fi -> bulb',broken:'Bulb drops off the network. App: "offline". Power-cycling turns it on at its last color.'},
+  soc:{name:'Wi-Fi chip',role:'A cheap Wi-Fi microcontroller (often ESP- or Beken-class) with the firmware on board.',decides:'Turns the color into five PWM duty cycles.',code:'duty = color_to_channels(rgb, white_balance)\nfor ch in R,G,B,CW,WW: pwm[ch].set(duty[ch])',broken:'No PWM signal. Dark, or stuck on its last color.'},
+  rect:{name:'Rectifier + fuse',role:'Four diodes flip the negative half of the AC wave. A fusible resistor protects the house wiring.',decides:'Nothing.',code:'230 V AC x √2 ≈ 325 V DC (bumpy)',broken:'A shorted diode blows the fuse. Dead bulb.'},
+  cap:{name:'Bulk capacitor',role:'Smooths the bumpy DC. Electrolytic capacitors dry out with heat: the most common reason LED bulbs die.',decides:'Nothing.',code:'ripple_out ≈ I / (f x C)',broken:'Dried out. Ripple leaks through: a visible 100 Hz flicker, then death.'},
+  driver:{name:'LED driver',role:'A switching constant-current regulator. LEDs want a fixed current, not a fixed voltage.',decides:'Holds the current steady; dims if the NTC says too hot.',code:'I_led = I_set x pwm_duty\nif ntc > 85°C: I_set *= 0.5',broken:'No current. No light at all.'},
+  leds:{name:'LED board',role:'Strings of R, G, B, cool-white and warm-white LEDs on an aluminium board.',decides:'Nothing. Light = current x on-time.',code:'perceived color = mix(on_time of 5 channels)',broken:'One LED burns open. They\'re in series, so the whole string goes dark.'},
+  sink:{name:'Heatsink + NTC',role:'Aluminium fins pull heat out of the LED board. An NTC tells the driver when it\'s too hot.',decides:'Nothing. Thermometer and radiator.',code:'if led_temp > 85°C: derate brightness',broken:'Heat can\'t leave. The driver halves the brightness to survive.'},
+  base:{name:'E27 base',role:'Live on the bottom contact, neutral on the thread.',decides:'Nothing.',code:'230 V AC in',broken:'Corroded contact. Nothing reaches the bulb.'}
+ },
+ seq:[
+  ['app',c=>`You tap "${MODES_BULB[c.mode].n}" in the app`,c=>{const m=MODES_BULB[c.mode];c.el('buSwatch').style.fill=m.col;c.el('buMode').textContent=m.n.split(' ')[0].toUpperCase();return sleep(250)}],
+  ['router','Router delivers the packet over 2.4 GHz Wi-Fi',c=>{c.el('buRadio').classList.add('on');return sleep(400)}],
+  ['soc',c=>{const d=MODES_BULB[c.mode].d.map(v=>Math.round(v*100));return `Wi-Fi chip sets duty: R ${d[0]}% G ${d[1]}% B ${d[2]}% CW ${d[3]}% WW ${d[4]}%`}],
+  ['base','230 V AC arrives at the base'],
+  ['rect','Rectifier: 230 V AC becomes ≈ 325 V bumpy DC'],
+  ['cap','Capacitor smooths the bumps'],
+  ['driver','Driver switches that down to a constant LED current'],
+  ['leds','Five channels pulse at the same kHz period, different on-times']
+ ],
+ fail:{
+  app:'Vendor cloud unreachable. The app spins, the bulb never hears a thing. The wall switch still works.',
+  router:c=>{c.el('buRadio').classList.remove('on');return 'Router down. The bulb is offline. Turn it off and on at the wall: it comes back at its last color.'},
+  soc:'Wi-Fi chip dead. No PWM, no light.',
+  rect:c=>{c.flash();return 'Shorted diode. The fuse blows with a tiny pop. Dead bulb.'},
+  cap:async c=>{await c.app.light(c,{flicker:true});return 'Dried capacitor. 100 Hz ripple gets through: you see it in your phone camera first, then in your eyes. It dies soon.'},
+  driver:'Driver chip dead. No current reaches the LEDs.',
+  leds:async c=>{await c.app.light(c,{deadCh:MODES_BULB[c.mode].d.indexOf(Math.max(...MODES_BULB[c.mode].d))});return 'The busiest string burned open. Series wiring: one dead LED kills the whole channel. Wrong color.'},
+  base:'Corroded contact. Nothing reaches the electronics.'
+ },
+ async light(c,o={}){
+  const m=MODES_BULB[c.mode];const d=m.d.slice();if(o.deadCh!=null)d[o.deadCh]=0;
+  const col=o.deadCh!=null?'#9AB0C8':m.col;
+  c.el('buStop').style.stopColor=col;c.el('buStop').nextElementSibling.style.stopColor=col;
+  const scope=(f)=>c.el('buScope').innerHTML=d.map((v,i)=>`<path d="${sq(352-f,214+i*32,264,18,v*(o.derate?.5:1))}" style="fill:none;stroke:${['#E5484D','#46A758','#6E8BFF','#DDE8FF','#FFC27A'][i]};stroke-width:2"/>`).join('');
+  if(o.flicker){c.el('buHalo').classList.add('flick');c.el('buDome').classList.add('flick')}
+  const sink=c.broken('sink');let t=25,derated=false,f=0;const sum=d.reduce((a,b)=>a+b,0);
+  await c.anim(5200,(k,dt)=>{
+   const top=sink?96:62;t=Math.min(top,t+dt*(top-25)/3800);
+   if(sink&&t>85&&!derated){derated=true;o.derate=true;c.log('NTC reads 85°C+. Driver halves the current to survive','fail')}
+   const bright=clamp(k*2,0,1)*(derated?.5:1);
+   c.el('buHalo').setAttribute('opacity',(.95*bright).toFixed(2));c.el('buDome').style.fill=bright>.05?col:'var(--panel)';c.el('buDome').style.fillOpacity=.35+.65*bright;
+   f=(f+dt*.06)%26;scope(f);
+   c.set('t',Math.round(t)+'°C');c.set('w',(9*Math.min(1,sum/1.1)*bright).toFixed(1)+' W');c.set('pwm',Math.round(Math.max(...d)*100*(derated?.5:1))+'%');c.chart(t);
+  });
+  c.el('buHalo').classList.remove('flick');c.el('buDome').classList.remove('flick');
+  return derated;
+ },
+ async run(c){const der=await this.light(c);
+  if(der)return {msg:'Heatsink can\'t shed heat. The NTC caught it at 85°C+ and the bulb now runs at half brightness. Better than dying.',cls:'fail'};
+  return {msg:`${MODES_BULB[c.mode].n} on. Board settles near 62°C. Nothing visible flickers: the PWM is too fast for your eyes.`}}
+});
+
+/* ===== TV ===== */
+APPS.push({
+ id:'tv',name:'TV',
+ blurb:'A TV is a computer bolted to a light panel. Part of it never sleeps: a standby circuit listens for one infrared code. And many smart TVs quietly fingerprint what is on screen and send it home.',
+ spec:[['Pixels (4K)','8.3 million'],['Refresh','60–120 Hz'],['4K stream','≈ 15–25 Mbps'],['Remote','IR, 38 kHz carrier']],
+ modes:['ACR on (default on many TVs)','ACR off'],
+ readouts:[['mbps','Stream','0 Mbps'],['fps','Refresh','0 Hz'],['acr','Fingerprints sent','0']],
+ chart:['Stream bitrate','Mbps',0,30],
+ base:`
+ <linearGradient id="tvSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1D2B64"/><stop offset=".55" stop-color="#C95B7A"/><stop offset="1" stop-color="#F8B26A"/></linearGradient>
+ <defs><g id="tvArt"><rect x="32" y="56" width="360" height="202" fill="url(#tvSky)"/><circle id="tvSun" cx="150" cy="190" r="26" fill="#FFE08A"/><polygon points="32,210 110,150 170,200 240,140 320,205 392,170 392,258 32,258" fill="#2A2546"/><rect x="32" y="222" width="360" height="36" fill="#1B4D6B"/><path id="tvWave" d="M32 232 q15 -6 30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0 t30 0" fill="none" stroke="#9FD3FF" stroke-width="2"/></g></defs>
+ <clipPath id="tvClip"><rect x="32" y="56" width="360" height="202"/></clipPath>
+ <clipPath id="tvTorchClip"><circle id="tvTorchC" cx="200" cy="150" r="0"/></clipPath>
+ <rect x="24" y="48" width="376" height="218" rx="6" style="fill:#0B0F13;stroke:var(--line)"/>
+ <rect x="32" y="56" width="360" height="202" fill="#050708"/>
+ <g id="tvPic" opacity="0" clip-path="url(#tvClip)"><use href="#tvArt"/></g>
+ <g id="tvTorch" clip-path="url(#tvTorchClip)" opacity="0"><use href="#tvArt"/></g>
+ <g id="tvLines" opacity="0">${[88,89,141,230,231,232,318].map((x,i)=>`<rect x="${x}" y="56" width="1.5" height="202" fill="${['#ff2bd1','#00ffd0','#ffffff','#ffe600','#ff2bd1','#00ffd0','#ffffff'][i]}"/>`).join('')}</g>
+ <g id="tvBands" opacity="0" clip-path="url(#tvClip)">${[0,1,2,3,4,5].map(i=>`<rect x="32" y="${56+i*34}" width="360" height="17" fill="${i%2?'#00ff88':'#ff00aa'}" opacity=".35"/>`).join('')}</g>
+ <g id="tvNoNet" opacity="0"><rect x="122" y="130" width="180" height="50" rx="6" fill="#111"/><text x="212" y="152" text-anchor="middle" class="lblW">NO NETWORK</text><text x="212" y="168" text-anchor="middle" class="lbl">HDMI 1 still works</text></g>
+ <rect x="190" y="266" width="44" height="22" class="m2"/><rect x="140" y="288" width="144" height="8" rx="3" class="m"/>
+ <circle cx="212" cy="262" r="2" style="fill:#FF4D4D"/>
+ <path id="tvBeam" d="M66 300 L208 264" style="stroke:#FF4D4D;stroke-width:2;stroke-dasharray:3 5;fill:none" opacity="0"/>
+ ${P('remote',[44,290,44,94],`<rect x="50" y="296" width="32" height="84" rx="10" class="chip"/><circle id="tvIrLed" cx="66" cy="302" r="3" style="fill:#552"/><circle cx="66" cy="318" r="6" style="fill:#c33"/>${[332,344,356].map(y=>`<rect x="56" y="${y}" width="20" height="6" rx="2" style="fill:#445"/>`).join('')}`,['remote',94,320])}
+ ${P('psu',[412,50,102,90],`<rect x="416" y="54" width="94" height="80" rx="3" class="pcb"/><rect x="424" y="64" width="26" height="26" rx="3" class="m"/><rect x="458" y="62" width="16" height="30" rx="5" style="fill:#2B4C8C"/><rect x="480" y="62" width="16" height="30" rx="5" style="fill:#2B4C8C"/><rect x="424" y="104" width="78" height="20" rx="2" class="chip"/>`,['power supply',414,152])}
+ ${P('soc',[520,50,100,90],`<rect x="524" y="54" width="92" height="80" rx="3" class="pcb"/><rect x="548" y="70" width="40" height="40" rx="3" class="m"/>${[76,84,92,100].map(y=>`<line x1="550" y1="${y}" x2="586" y2="${y}" class="fin"/>`).join('')}<rect x="594" y="62" width="16" height="12" class="chip"/><rect x="594" y="80" width="16" height="12" class="chip"/>`,['main board · soc',522,152])}
+ ${P('ir',[412,160,48,34],`<rect x="418" y="166" width="36" height="22" rx="3" class="chip"/><circle cx="436" cy="177" r="5" style="fill:#552"/>`,['ir rx',414,206])}
+ ${P('wifi',[466,160,48,34],`<rect x="472" y="166" width="36" height="22" rx="3" class="pcb"/><path d="M478 170 h14 v4 h-10 v4 h10" class="cu"/>`,['wi-fi',470,206])}
+ ${P('tcon',[520,160,100,40],`<rect x="524" y="164" width="92" height="32" rx="3" class="pcb"/><rect x="560" y="170" width="20" height="20" class="chip"/>`,['t-con',524,212])}
+ ${P('backlight',[412,222,208,62],`${[232,252,272].map(y=>`<rect x="418" y="${y}" width="196" height="8" rx="3" style="fill:#E9EEF2;stroke:var(--line)"/>`+[0,1,2,3,4,5,6,7,8,9,10,11].map(i=>`<circle class="tvLed" cx="${428+i*16}" cy="${y+4}" r="2.5" style="fill:var(--line)"/>`).join('')).join('')}`,['led backlight strips',414,296])}
+ ${P('panel',[412,306,208,48],`<rect x="416" y="340" width="200" height="10" class="chip"/>${[0,1,2,3,4,5].map(i=>`<rect x="${426+i*32}" y="310" width="18" height="30" style="fill:#C58434;opacity:.75"/>`).join('')}`,['panel drivers (cof)',414,366])}
+ `,
+ cover:`<rect x="404" y="40" width="224" height="330" rx="10" class="m" stroke-width="2"/>${[0,1,2,3,4,5,6,7].map(i=>`<rect x="430" y="${70+i*30}" width="170" height="8" rx="4" class="m2"/>`).join('')}<text class="lbl" x="420" y="360">back cover</text>`,
+ parts:{
+  remote:{name:'Remote',role:'An infrared LED blinks a code modulated on a 38 kHz carrier.',decides:'Nothing. Sends a code.',code:'send(NEC, addr=0x04, cmd=POWER) @ 38 kHz',broken:'Dead battery. Point a phone camera at it: no purple flash.'},
+  ir:{name:'IR receiver',role:'A photodiode with a 38 kHz filter that outputs clean pulses.',decides:'Nothing. Demodulates.',code:'pulses -> standby_mcu.decode()',broken:'Remote flashes, TV ignores it. Buttons on the TV still work.'},
+  psu:{name:'Power supply',role:'A small always-on standby supply (≈ 0.5 W) plus the main supply that only starts on command.',decides:'Nothing. The standby chip flips it on.',code:'standby_5V: always on\nif decode == POWER: main_supply.enable()',broken:'A bulged capacitor. Relay clicks, standby LED blinks, it never boots.',warn:'Mains-side capacitors here can stay charged after unplugging.'},
+  soc:{name:'Main board (SoC)',role:'A phone-class processor running the TV OS and a hardware video decoder.',decides:'Everything you see: apps, decoding, image processing, and what data leaves the TV.',code:'frame = hevc_decode(stream)\nframe = upscale(denoise(frame))\nif acr.enabled: send(fingerprint(frame))',broken:'Corrupted storage: stuck on the logo in a boot loop.'},
+  wifi:{name:'Wi-Fi module',role:'Brings in the stream and sends telemetry out.',decides:'Nothing. A pipe both ways.',code:'in:  ≈ 15-25 Mbps 4K video\nout: telemetry, ACR fingerprints',broken:'No network. Apps fail; HDMI inputs still play.'},
+  tcon:{name:'T-con board',role:'Timing controller: turns each frame into precise row and column signals for the panel.',decides:'Nothing. Timing only.',code:'for row in 0..2159: drive(row, pixels[row])',broken:'Wrong timing: color bands, ghosting, garbage.'},
+  backlight:{name:'LED backlight',role:'Strips of white LEDs behind the panel, wired in series and driven at high voltage.',decides:'Nothing. The board sets brightness (local dimming on better sets).',code:'backlight.current = brightness x zone_map',broken:'One LED fails open: the whole series string is dark. Sound plays, screen black.'},
+  panel:{name:'LCD panel + drivers',role:'Liquid crystals twist per subpixel to let light through. Driver chips on flex cables feed every column.',decides:'Nothing.',code:'3840 x 2160 x 3 subpixels, refreshed 60-120 times/s',broken:'A column driver fails: hard vertical lines that never move.'}
+ },
+ seq:[
+  ['remote','POWER pressed: IR LED blinks a code on a 38 kHz carrier',async c=>{c.el('tvIrLed').style.fill='#FF4D4D';c.el('tvBeam').setAttribute('opacity',1);await sleep(500);c.el('tvBeam').setAttribute('opacity',0);c.el('tvIrLed').style.fill='#552'}],
+  ['ir','IR receiver strips the carrier, standby chip decodes POWER'],
+  ['psu','Always-on 5 V standby wakes the main supply'],
+  ['soc','SoC boots the TV OS. Video decoder ready'],
+  ['wifi','Stream arrives over Wi-Fi: ≈ 15–25 Mbps for 4K'],
+  ['tcon','T-con turns each frame into row and column timing'],
+  ['backlight','Backlight driver lights the LED strips',c=>{c.q('.tvLed').forEach(e=>e.style.fill='#FFF6D6');return sleep(200)}],
+  ['panel','Crystals twist per subpixel: 8.3 million pixels, 60 times a second']
+ ],
+ fail:{
+  remote:'Dead remote battery. No IR at all. A phone camera would show no flash.',
+  ir:'IR receiver dead. The remote flashes, the TV hears nothing. The button on the TV still works.',
+  psu:async c=>{for(let i=0;i<3;i++){c.log('Relay click. Main supply collapses','fail');await sleep(450)}return 'Bulged capacitor in the power supply. Click, blink, click: it never boots.'},
+  soc:async c=>{c.el('tvPic').setAttribute('opacity',0);c.log('Logo... reboot... logo...','fail');await sleep(1200);return 'Boot loop. The storage chip holding the OS is corrupted.'},
+  wifi:async c=>{c.el('tvNoNet').setAttribute('opacity',1);await sleep(1200);return 'Wi-Fi module dead. No streaming apps. HDMI still works.'},
+  tcon:async c=>{await c.app.play(c,{bands:true});return 'T-con fault: color bands and garbage. The panel and backlight are fine.'},
+  backlight:async c=>{c.q('.tvLed').forEach(e=>e.style.fill='var(--line)');await c.app.play(c,{dark:true});return 'Backlight dead: sound plays, screen black. Shine a flashlight at the screen and the picture is there.'},
+  panel:async c=>{await c.app.play(c,{lines:true});return 'A column driver failed: vertical lines that never move. Usually means a new panel.'}
+ },
+ async play(c,o={}){
+  const acr=c.mode===0&&!o.dark;let n=0,lastAcr=0;
+  if(!o.dark)c.el('tvPic').setAttribute('opacity',1);
+  if(o.lines)c.el('tvLines').setAttribute('opacity',1);
+  if(o.bands)c.el('tvBands').setAttribute('opacity',1);
+  if(o.dark){c.el('tvTorch').setAttribute('opacity',.75);c.log('Flashlight test: the picture is there, just unlit','note')}
+  if(!acr&&c.mode===1)c.log('ACR off: no screen fingerprints leave the TV','note');
+  let ph=0;
+  await c.anim(5600,(k,dt)=>{
+   ph+=dt;const mb=18+Math.sin(ph/300)*3+Math.sin(ph/97)*1.5;
+   c.el('tvSun').setAttribute('cy',190-k*30);c.el('tvWave').setAttribute('transform',`translate(${-(ph/20)%30} 0)`);
+   if(o.dark){const r=Math.min(46,k*120);c.el('tvTorchC').setAttribute('r',r);c.el('tvTorchC').setAttribute('cx',140+k*120);c.el('tvTorchC').setAttribute('cy',150+Math.sin(k*6)*30)}
+   c.set('mbps',mb.toFixed(1)+' Mbps');c.set('fps','60 Hz');c.chart(mb);
+   if(acr&&ph-lastAcr>1100){lastAcr=ph;n++;c.set('acr',n);c.log('ACR: screen fingerprint sent to the vendor','note')}
+  });
+  return n;
+ },
+ async run(c){const n=await this.play(c);
+  return {msg:c.mode===0?`Picture on. ${n} fingerprints of your screen went out while you watched, every few seconds in real life. You can turn ACR off in settings.`:'Picture on. 8.3 million pixels, 60 times a second, and nothing about what you watch leaves the TV.'}}
+});
+
+/* ---------- engine ---------- */
+let A=APPS[0],broken=new Set(),sel=null,running=false,caseOpen=false,mode=0,t0=0;
+const chart={label:'',unit:'',min:0,max:100,pts:[]};
+function chartReset(label,unit,min,max){Object.assign(chart,{label,unit,min,max,pts:[]});$('chLabel').textContent=label;$('chVal').textContent='';drawChart()}
+let lastDraw=0;
+function chartPush(v){chart.pts.push(v);if(chart.pts.length>320)chart.pts.shift();const n=performance.now();if(n-lastDraw>60){lastDraw=n;drawChart()}}
+function drawChart(){const cv=$('chart'),r=cv.getBoundingClientRect();if(!r.width)return;const dpr=devicePixelRatio||1;cv.width=r.width*dpr;cv.height=r.height*dpr;const g=cv.getContext('2d');g.scale(dpr,dpr);const cs=getComputedStyle(document.documentElement);const W=r.width,H=r.height;
+ g.strokeStyle=cs.getPropertyValue('--grid').trim();g.lineWidth=1;for(let i=0;i<=4;i++){g.beginPath();g.moveTo(0,.5+(H-1)*i/4);g.lineTo(W,.5+(H-1)*i/4);g.stroke()}
+ g.fillStyle=cs.getPropertyValue('--muted').trim();g.font='10px '+cs.getPropertyValue('--f-mono');g.fillText(chart.max,2,10);g.fillText(chart.min,2,H-3);
+ const p=chart.pts;if(p.length<2)return;const sx=(W-4)/(Math.max(p.length,80)-1);const y=v=>H-3-(clamp(v,chart.min,chart.max)-chart.min)/(chart.max-chart.min)*(H-6);
+ const ac=cs.getPropertyValue('--signal').trim();g.beginPath();p.forEach((v,i)=>i?g.lineTo(i*sx,y(v)):g.moveTo(0,y(v)));g.strokeStyle=ac;g.lineWidth=2;g.stroke();
+ g.lineTo((p.length-1)*sx,H);g.lineTo(0,H);g.closePath();g.globalAlpha=.13;g.fillStyle=ac;g.fill();g.globalAlpha=1;
+ const lv=p[p.length-1];g.beginPath();g.arc((p.length-1)*sx,y(lv),3.5,0,7);g.fill();$('chVal').textContent=(Math.round(lv*10)/10)+' '+chart.unit}
+addEventListener('resize',drawChart);
+try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',drawChart)}catch(e){}
+
+function render(){
+ const svg=$('svg');
+ svg.innerHTML=DEFS+`<rect x="4" y="4" width="632" height="392" rx="10" fill="url(#grid)"/>`+A.base+`<g id="case"${caseOpen?' class="open"':''}>${A.cover}</g>`+(A.top||'')+`<g id="traces"></g><circle id="halo" r="16" fill="url(#gSig)" opacity="0"/><circle id="dot" r="5.5" opacity="0"/>`;
+ svg.querySelectorAll('.part').forEach(p=>{const id=p.dataset.id,d=A.parts[id];p.setAttribute('aria-label',d.name);p.classList.toggle('broken',broken.has(id));p.classList.toggle('sel',sel===id);
+  p.addEventListener('click',()=>show(id));p.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();show(id)}})});
+ A.reset&&A.reset();
+}
+function anchor(id){const r=$('svg').querySelector(`.part[data-id="${id}"] .hit`);return [+r.getAttribute('x')+ +r.getAttribute('width')/2,+r.getAttribute('y')+ +r.getAttribute('height')/2]}
+function overview(){sel=null;$('svg').querySelectorAll('.part').forEach(p=>p.classList.remove('sel'));$('infoTag').textContent='Appliance';$('infoName').textContent=A.name;$('infoRole').textContent=A.blurb;
+ $('infoKv').innerHTML=A.spec.map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join('');$('infoWarn').hidden=true;$('breakBtn').hidden=true;$('backBtn').hidden=true}
+function esc(s){return s.replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))}
+function show(id){sel=id;$('svg').querySelectorAll('.part').forEach(p=>p.classList.toggle('sel',p.dataset.id===id));const d=A.parts[id];
+ $('infoTag').textContent=broken.has(id)?'Part · broken':'Part';$('infoName').textContent=d.name;$('infoRole').textContent=d.role;
+ $('infoKv').innerHTML=`<dt>Decides</dt><dd>${esc(d.decides)}</dd><dt>Logic</dt><dd><pre class="code">${esc(d.code)}</pre></dd><dt>If broken</dt><dd>${esc(d.broken)}</dd>`;
+ $('infoWarn').hidden=!d.warn;$('infoWarn').textContent=d.warn||'';$('breakBtn').hidden=false;$('backBtn').hidden=false;$('breakBtn').textContent=broken.has(id)?'Repair it':'Break it';$('breakBtn').disabled=running}
+function hint(){$('brokenHint').textContent=broken.size?`Broken: ${[...broken].map(i=>A.parts[i].name).join(', ')}`:''}
+$('breakBtn').onclick=()=>{if(!sel||running)return;broken.has(sel)?broken.delete(sel):broken.add(sel);$('svg').querySelector(`.part[data-id="${sel}"]`).classList.toggle('broken',broken.has(sel));show(sel);hint()};
+$('backBtn').onclick=overview;
+function toggleCase(force){caseOpen=force===undefined?!caseOpen:force;$('case').classList.toggle('open',caseOpen);$('caseBtn').textContent=caseOpen?'Put the case back':'Take the case off'}
+$('caseBtn').onclick=()=>{if(!running)toggleCase()};
+$('resetBtn').onclick=()=>{if(running)return;broken.clear();render();sel?show(sel):overview();hint()};
+$('modeSel').onchange=e=>{mode=+e.target.value};
+function setupPanel(){
+ $('readout').style.gridTemplateColumns=`repeat(${A.readouts.length},minmax(0,1fr))`;
+ $('readout').innerHTML=A.readouts.map(([k,l,v])=>`<div><b id="ro-${k}">${v}</b><span>${l}</span></div>`).join('');
+ chartReset(...A.chart);
+ const has=!!A.modes;$('modeSel').hidden=!has;$('modeLbl').hidden=!has;if(has){$('modeSel').innerHTML=A.modes.map((m,i)=>`<option value="${i}">${m}</option>`).join('');$('modeSel').value=0;mode=0}else mode=0;
+ $('log').innerHTML='<li class="note"><span class="t">--</span><span>Press START to follow the signal.</span></li>';
+ overview();hint();
+}
+function selectApp(id,push){if(running)return;const a=APPS.find(x=>x.id===id)||APPS[0];A=a;broken.clear();sel=null;caseOpen=false;$('caseBtn').textContent='Take the case off';
+ $('rail').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.id===A.id));render();setupPanel();
+ if(push){try{history.replaceState(null,'','#'+A.id)}catch(e){location.hash=A.id}}}
+$('rail').innerHTML=APPS.map(a=>`<button data-id="${a.id}" aria-pressed="false">${a.name}</button>`).join('');
+$('rail').querySelectorAll('button').forEach(b=>b.onclick=()=>selectApp(b.dataset.id,true));
+addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(h&&h!==A.id)selectApp(h)});
+
+function ctx(){
+ const svg=$('svg');const c={app:A,mode,
+  broken:id=>broken.has(id),el:id=>svg.querySelector('#'+id),q:s=>svg.querySelectorAll(s),
+  log(msg,cls){const li=document.createElement('li');if(cls)li.className=cls;li.innerHTML=`<span class="t">${((performance.now()-t0)/1000).toFixed(1)}s</span><span></span>`;li.lastChild.textContent=msg;$('log').appendChild(li);$('log').scrollTop=1e6},
+  set(k,v){const e=$('ro-'+k);if(e)e.textContent=v},chart:chartPush,chartReset,sleep,anim,
+  spin(id,on,cls='spin'){const e=c.el(id);if(e){e.classList.remove('spin','spinS');if(on)e.classList.add(cls)}},
+  lit(id,on){const p=svg.querySelector(`.part[data-id="${id}"]`);p&&p.classList.toggle('lit',on)},
+  flash(){svg.classList.add('blink');setTimeout(()=>svg.classList.remove('blink'),2100)},
+  async move(to){const dot=c.el('dot'),halo=c.el('halo');const fx=+dot.getAttribute('cx'),fy=+dot.getAttribute('cy');const legs=[[to[0],fy],[to[0],to[1]]];let px=fx,py=fy;
+   for(const [tx,ty] of legs){const L=Math.hypot(tx-px,ty-py);if(L<1)continue;const ln=document.createElementNS('http://www.w3.org/2000/svg','line');ln.setAttribute('class','trace');ln.setAttribute('x1',px);ln.setAttribute('y1',py);ln.setAttribute('x2',px);ln.setAttribute('y2',py);c.el('traces').appendChild(ln);const sx=px,sy=py;
+    await anim(Math.max(140,L*1.3),k=>{const e=ease(k),x=lerp(sx,tx,e),y=lerp(sy,ty,e);dot.setAttribute('cx',x);dot.setAttribute('cy',y);halo.setAttribute('cx',x);halo.setAttribute('cy',y);ln.setAttribute('x2',x);ln.setAttribute('y2',y)});px=tx;py=ty}},
+  async countdown(sec,ms,tick){await anim(ms,(k,dt)=>{const left=sec*(1-k);const s='0:'+String(Math.max(0,Math.ceil(left))).padStart(2,'0');const l=c.el('mwLcd');if(l)l.textContent=s;c.set('timer',s);tick(left,k,dt)})}
+ };return c}
+function lock(on){['startBtn','resetBtn','caseBtn','modeSel'].forEach(i=>$(i).disabled=on);$('breakBtn').disabled=on;$('rail').querySelectorAll('button').forEach(b=>b.disabled=on)}
+$('startBtn').onclick=async()=>{
+ if(running)return;running=true;lock(true);t0=performance.now();$('log').innerHTML='';
+ render();setupReadouts();chartReset(...A.chart);if(sel)show(sel);
+ if(!caseOpen){toggleCase(true);await sleep(800)}
+ const c=ctx();const dot=c.el('dot'),halo=c.el('halo');const s0=anchor(A.seq[0][0]);dot.setAttribute('cx',s0[0]);dot.setAttribute('cy',s0[1]);halo.setAttribute('cx',s0[0]);halo.setAttribute('cy',s0[1]);dot.setAttribute('opacity',1);halo.setAttribute('opacity',1);
+ let r=null;
+ try{
+  for(const [id,msg,fx] of A.seq){await c.move(anchor(id));c.lit(id,true);
+   if(broken.has(id)&&!A.parts[id].soft){const f=A.fail&&A.fail[id];r=typeof f==='function'?await f.call(A,c):(f||null);if(typeof r==='string')r={msg:r,cls:'fail'};if(!r)r={msg:A.parts[id].broken,cls:'fail'};if(!r.cls)r.cls='fail';break}
+   c.log(typeof msg==='function'?msg(c):msg);if(fx)await fx(c);else await sleep(170)}
+  if(!r)r=await A.run(c);
+ }catch(e){console.error(e);r={msg:'Simulation error: '+e.message,cls:'fail'}}
+ c.log(r.msg,r.cls||'done');dot.setAttribute('opacity',0);halo.setAttribute('opacity',0);drawChart();
+ running=false;lock(false);if(sel)show(sel);
+};
+function setupReadouts(){A.readouts.forEach(([k,,v])=>{const e=$('ro-'+k);if(e)e.textContent=v})}
+
+const start=location.hash.slice(1);selectApp(APPS.some(a=>a.id===start)?start:'microwave');
+</script>
+
+</body>
+</html>
